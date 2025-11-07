@@ -13,4 +13,7 @@ else()
     add_compile_options(-Wall -Wextra -Wpedantic)
 endif()
 
+include_directories(BEFORE src/json/src src/toolbox/src)
+
 add_subdirectory(src/modbuild)
+add_subdirectory(tests)
