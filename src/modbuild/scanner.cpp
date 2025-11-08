@@ -1,4 +1,5 @@
 #include "scanner.hpp"
+#include <algorithm>
 
 
 enum class TokenType {

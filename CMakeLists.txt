@@ -1,6 +1,19 @@
 cmake_minimum_required(VERSION 3.20)
 project(modbuilder)
 
+find_package(Git QUIET)
+if(GIT_FOUND)
+    execute_process(
+        COMMAND ${GIT_EXECUTABLE} submodule update --init
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+        RESULT_VARIABLE GIT_SUBMOD_RESULT
+    )
+    if(NOT GIT_SUBMOD_RESULT EQUAL 0)
+        message(WARNING "Failed to update git submodules.")
+    endif()
+else()
+    message(WARNING "Git not found. Submodules may not be initialized.")
+endif()
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)

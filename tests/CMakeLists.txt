@@ -1,8 +1,13 @@
-add_executable(scanner_test.exe)
-
-target_sources(scanner_test.exe PRIVATE
-        scanner_test.cpp
-        ../src/modbuild/scanner.cpp
-)   
+add_executable(scanner_test)
+target_sources(scanner_test PRIVATE scanner_test.cpp)
+target_link_libraries(scanner_test modbuildlb)
 
 
+add_executable(clang_file_scanner_test)
+target_sources(clang_file_scanner_test PRIVATE clang_file_scanner_test.cpp)
+target_link_libraries(clang_file_scanner_test modbuildlb)
+
+
+add_executable(gcc_file_scanner_test)
+target_sources(gcc_file_scanner_test PRIVATE gcc_file_scanner_test.cpp)
+target_link_libraries(gcc_file_scanner_test modbuildlb)

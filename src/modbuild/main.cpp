@@ -1,5 +1,4 @@
-#include "arguments.hpp"
-#include "abstract_compiler.hpp"
+#include "utils/arguments.hpp"
 #include <vector>
 
 template<typename T>
@@ -8,7 +7,7 @@ int tmain(int argc, T *argv[]) {
     std::vector<ArgumentStringView> args;
     args.resize(argc);
     for (int i = 0; i < argc; ++i) {
-        args[i] = argv[i];
+        args[i] = reinterpret_cast<ArgumentString::value_type *>(argv[i]);
     }
 
     //todo entry point
