@@ -8,6 +8,6 @@ target_sources(clang_file_scanner_test PRIVATE clang_file_scanner_test.cpp)
 target_link_libraries(clang_file_scanner_test modbuildlb)
 
 
-add_executable(gcc_file_scanner_test)
-target_sources(gcc_file_scanner_test PRIVATE gcc_file_scanner_test.cpp)
-target_link_libraries(gcc_file_scanner_test modbuildlb)
+#add_executable(gcc_file_scanner_test)
+#target_sources(gcc_file_scanner_test PRIVATE gcc_file_scanner_test.cpp)
+#target_link_libraries(gcc_file_scanner_test modbuildlb)

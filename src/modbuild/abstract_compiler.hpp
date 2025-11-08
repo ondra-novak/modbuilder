@@ -3,6 +3,7 @@
 #include <filesystem>
 #include <vector>
 #include <span>
+#include "module_type.hpp"
 #include "utils/arguments.hpp"
 #include "utils/which.hpp"
 
@@ -30,13 +31,13 @@ public:
         std::filesystem::path program_path;
         std::vector<ArgumentString> compile_options;
         std::vector<ArgumentString> link_options;
+        std::filesystem::path working_directory;
     };
 
     virtual ~AbstractCompiler() = default;
 
-    
-    
-    virtual int compile(std::filesystem::path source, 
+    virtual int compile(const std::filesystem::path &source_ref, 
+        ModuleReferenceType type,
         std::span<const ModuleMapping> modules,
         CompileResult &result) const = 0;
     
@@ -53,7 +54,7 @@ public:
         common, compile, link
     };
 
-    static Config parse_commandline(const std::span<const ArgumentString> &args) {
+    static Config parse_commandline(const std::span<const ArgumentString> &args, std::filesystem::path working_dir) {
         Config out;
         State st = State::common;
         if (args.empty()) return out;
@@ -61,6 +62,8 @@ public:
         auto found = find_in_path(args[0]);
         if (found.has_value()) out.program_path = std::move(found.value());
         else out.program_path = args[0];
+
+        out.working_directory = std::move(working_dir);
 
         auto params = args.subspan(1);
 

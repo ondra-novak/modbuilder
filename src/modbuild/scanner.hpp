@@ -1,14 +1,9 @@
 #pragma once
 #include "abstract_compiler.hpp"
+#include "module_type.hpp"
 #include <string>
 #include <vector>
 #include <filesystem>
-
-enum class ModuleType {
-    interface,
-    implementation,
-    source
-};
 
 class SourceScanner {
 public:

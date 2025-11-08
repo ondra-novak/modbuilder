@@ -5,7 +5,8 @@
 class CompilerGcc : public AbstractCompiler {
 public:
 
-    virtual int compile(std::filesystem::path source, 
+    virtual int compile(const std::filesystem::path &source_ref, 
+        ModuleReferenceType type,
         std::span<const ModuleMapping> modules,
         CompileResult &result) const override;
     

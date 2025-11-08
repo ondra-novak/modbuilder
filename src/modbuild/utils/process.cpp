@@ -2,6 +2,7 @@
 
 #include "process.hpp"
 #include <cstddef>
+#include <filesystem>
 #include <numeric>
 #include <spawn.h>
 #include <unistd.h>
@@ -51,6 +52,7 @@ void Process::kill_child() {
 }
 
 Process Process::spawn(const std::filesystem::path & path,
+                       const std::filesystem::path & workdir,
                          const std::vector<ArgumentString>& args) {
     int in_pipe[2];   // parent writes -> child stdin
     int out_pipe[2];  // child writes -> parent stdout
@@ -69,6 +71,13 @@ Process Process::spawn(const std::filesystem::path & path,
     // Close unused ends in child
     posix_spawn_file_actions_addclose(&actions, in_pipe[1]);
     posix_spawn_file_actions_addclose(&actions, out_pipe[0]);
+
+    auto cd = std::filesystem::current_path();
+    auto cd_ret = std::unique_ptr<std::filesystem::path, decltype([](auto *x){
+        std::filesystem::current_path(*x);
+    })>(&cd);
+    
+    std::filesystem::current_path(workdir);
 
     std::string pathstr = path.string();
 
@@ -127,3 +136,61 @@ Process Process::spawn(const std::filesystem::path & path,
     return p;
 }
 
+
+Process Process::spawn_noredir(const std::filesystem::path & path,
+                       const std::filesystem::path & workdir,
+                         const std::vector<ArgumentString>& args) {
+
+
+    posix_spawn_file_actions_t actions;
+    posix_spawn_file_actions_init(&actions);
+
+    auto cd = std::filesystem::current_path();
+    auto cd_ret = std::unique_ptr<std::filesystem::path, decltype([](auto *x){
+        std::filesystem::current_path(*x);
+    })>(&cd);
+    
+    std::filesystem::current_path(workdir);
+
+    std::string pathstr = path.string();
+
+    std::size_t reqspace = pathstr.length()+1+std::accumulate(args.begin(), args.end(), std::size_t(0), 
+        [](std::size_t a, const ArgumentString &s) {
+            return a + s.length()+1;
+        });        
+                         
+
+    FixSizeVector<char> arg_buffer(reqspace);
+    FixSizeVector<char *> pointers(args.size()+2);  //args + arg0 + NULL;
+
+    {
+        char *wrt = arg_buffer.data();
+        auto ptr_iter = pointers.begin();
+        *ptr_iter++ = wrt;
+        wrt = std::copy(pathstr.begin(), pathstr.end(), wrt);
+        *wrt++ = 0;
+        for (const auto &a: args) {
+            *ptr_iter++ = wrt;
+            wrt = std::copy(a.begin(), a.end(), wrt);
+            *wrt++ = 0;
+        }
+        *ptr_iter = nullptr;
+    }
+    
+    pid_t child_pid;
+    int rc = posix_spawnp(&child_pid,
+                            pathstr.c_str(),
+                            &actions,
+                            nullptr,
+                            pointers.data(),
+                            environ);
+
+    if (rc != 0) {
+        throw std::runtime_error(std::string("posix_spawn failed: ") + std::strerror(rc));
+    }
+
+    Process p;
+    p.pid = child_pid;
+
+    return p;
+}

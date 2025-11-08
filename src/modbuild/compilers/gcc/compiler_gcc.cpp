@@ -4,14 +4,6 @@
 #include <utils/process.hpp>
 
 
-
-
-int CompilerGcc::compile([[maybe_unused]] std::filesystem::path source,
-                           [[maybe_unused]] std::span<const ModuleMapping> modules,
-                           [[maybe_unused]] CompileResult &result) const {
-    throw std::runtime_error("not implemented");
-}
-
 int CompilerGcc::link([[maybe_unused]] std::filesystem::path binary,
                         [[maybe_unused]] std::span<const std::filesystem::path> objects) const {
     throw std::runtime_error("not implemented");
@@ -23,7 +15,7 @@ std::string CompilerGcc::preproces(const std::filesystem::path &file) const {
     args.emplace_back(preprocess_flag);
     args.emplace_back(path_arg(file));
 
-    Process p = Process::spawn(_config.program_path, std::move(args));
+    Process p = Process::spawn(_config.program_path, _config.working_directory, std::move(args));
 
     std::string out((std::istreambuf_iterator<char>(*p.stdout_stream)),
                      std::istreambuf_iterator<char>());
@@ -34,4 +26,11 @@ std::string CompilerGcc::preproces(const std::filesystem::path &file) const {
 
 std::unique_ptr<AbstractCompiler> CompilerGcc::create(std::span<const ArgumentString> arguments) {
     return std::make_unique<CompilerGcc>(parse_commandline(arguments));
+}
+
+int CompilerGcc::compile(ArgumentString source_ref, 
+        ModuleReferenceType type,
+        std::span<const ModuleMapping> modules,
+        CompileResult &result) const {
+
 }

@@ -12,5 +12,3 @@ export namespace mymod {
 
 }
 
-import modB;
-export import modC;

@@ -19,6 +19,12 @@ inline ArgumentString inline_arg(const char (&str)[N]) {
     return ret;
 }
 
+inline ArgumentString string_arg(std::string_view str) {
+    ArgumentString ret;
+    for (char c: str) ret.push_back(c);
+    return ret;
+}
+
 inline ArgumentString path_arg(const std::filesystem::path &p) {
 #ifdef _WIN32 
     return ArgumentString(p.native());

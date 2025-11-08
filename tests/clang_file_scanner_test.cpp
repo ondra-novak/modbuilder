@@ -38,7 +38,7 @@ int main() {
         inline_arg("clang++"),
         inline_arg("-Imodule_example/includes"),
     };
-    auto compiler = CompilerClang::create(args);
+    auto compiler = CompilerClang::create(args, std::filesystem::current_path());
 
     SourceScanner scanner(*compiler);
     std::cout << path << std::endl;
