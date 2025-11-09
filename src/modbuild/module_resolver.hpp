@@ -2,7 +2,7 @@
 #include <vector>
 #include <filesystem>
 
-class ModuleSourceScanner {
+class ModuleResolver {
 public:
 
     struct ModulePrefixMap {
@@ -12,10 +12,16 @@ public:
 
     struct Result {
         std::vector<std::filesystem::path> files;
-        std::vector<ModulePrefixMap> mapping;                
+        std::vector<ModulePrefixMap> mapping;      
+        std::filesystem::path origin;
     };
 
 
     static Result loadMap(std::filesystem::path directory);
+    static bool detect_change(std::filesystem::path directory, std::filesystem::file_time_type treshold);
 
+    static std::string_view modules_json;
+
+
+    static bool match_prefix(std::string_view prefix, std::string_view name);
 };

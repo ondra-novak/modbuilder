@@ -1,18 +1,18 @@
 #include <format>
 #include <vector>
-#include <span>
 #include <functional>
 
 struct Log {
 
     enum class Level {
-        error = 0,
-        warning = 1,
-        debug = 2
+        error = 0,      //all errors
+        warning = 1,    //serious issues
+        verbose = 2,    //verbose commands, describe steps
+        debug = 3       //all debug informations
     };
 
-    static constexpr std::array<std::string_view, 3> strLevel = {
-        "!ERR","WARN","    "
+    static constexpr std::array<std::string_view, 4> strLevel = {
+        "!ERR","WARN","","debug"
     };
 
 
@@ -40,7 +40,7 @@ struct Log {
 
     template<typename ... Args>
     static void output(Level level, std::format_string<Args...> fmt, Args && ... args) {
-        if (disabled_level >= level) return;
+        if (disabled_level > level) return;
         auto buf = get_buffer(level);        
         std::format_to(std::back_inserter(buf), fmt, std::forward<Args>(args)...);
         send_buffer(level, buf);
@@ -64,4 +64,22 @@ struct Log {
     }
  
 
+};
+
+template <std::invocable F>
+struct std::formatter<F> : std::formatter<std::invoke_result_t<F>> {
+    // Dědíme formatter pro návratový typ funkce
+    using base = std::formatter<std::invoke_result_t<F>>;
+    using result_type = std::invoke_result_t<F>;
+
+    // parse() přebíráme beze změny
+    constexpr auto parse(std::format_parse_context& ctx) {
+        return base::parse(ctx);
+    }
+
+    // ve formátovací fázi funkci zavoláme a zformátujeme výsledek
+    template <typename FormatContext>
+    auto format(const F& f, FormatContext& ctx) const {
+        return base::format(std::invoke(f), ctx);
+    }
 };

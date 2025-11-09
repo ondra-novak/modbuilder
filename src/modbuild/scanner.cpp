@@ -261,13 +261,13 @@ SourceScanner::Info SourceScanner::scan_string_2(const std::string_view text) {
                     nfo.required.push_back(std::move(n));
                     if (has_export) {
                         nfo.exported.push_back(nfo.required.back());
-                        has_export = false;                   
-                    } else if (s.type == TokenType::string) {
-                        nfo.include_q.push_back(std::string(s.text));
-                    } else  if (s.type == TokenType::angled_include) {
-                        nfo.include_a.push_back(std::string(s.text));
-                    }
-                }
+                        has_export = false;  
+                    }                 
+                } else if (s.type == TokenType::string) {
+                    nfo.include_q.push_back(std::string(s.text));
+                } else  if (s.type == TokenType::angled_include) {
+                    nfo.include_a.push_back(std::string(s.text));
+                }                
             }
         }
         has_export = false;

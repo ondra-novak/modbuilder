@@ -11,3 +11,7 @@ target_link_libraries(clang_file_scanner_test modbuildlb)
 #add_executable(gcc_file_scanner_test)
 #target_sources(gcc_file_scanner_test PRIVATE gcc_file_scanner_test.cpp)
 #target_link_libraries(gcc_file_scanner_test modbuildlb)
+
+add_executable(test_db_basic_clang)
+target_sources(test_db_basic_clang PRIVATE test_db_basic_clang.cpp)
+target_link_libraries(test_db_basic_clang modbuildlb)

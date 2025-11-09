@@ -1,0 +1,11 @@
+{
+    "files":[
+        "A.cpp",
+        "Aimp.cpp",
+        "B.cpp",
+        "test.cpp"
+    ],
+    "prefixes":{
+        "": "../modA"
+    }
+}

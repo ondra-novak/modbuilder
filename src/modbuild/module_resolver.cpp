@@ -3,32 +3,43 @@
 #include <json/parser.h>
 #include <json/value.h>
 #include "utils/log.hpp"
+#include "utils/filesystem.hpp"
 
 
+std::string_view ModuleResolver::modules_json = "modules.json";
 
-ModuleSourceScanner::Result scan_directory(const std::filesystem::path &directory) {
+ModuleResolver::Result scan_directory(const std::filesystem::path &directory) {
 
-    ModuleSourceScanner::Result out;
+    ModuleResolver::Result out;
 
-    std::filesystem::directory_iterator iter(directory), end{};
-    while (iter != end) {
-        const auto &entry = *iter;
-        if (entry.is_regular_file()) {
-            auto p = entry.path();
-            auto ext = p.extension().string();
-            std::transform(ext.begin(), ext.end(), ext.begin(), [&](char c)->char{ return static_cast<char>(std::tolower(c));});
-            if (ext == ".cpp" || ext == ".cppm") {
-                out.files.push_back(std::move(p));
-            }            
+    std::error_code ec;
+    if (ec == std::error_code{}) {
+
+        std::filesystem::directory_iterator iter(directory), end{};
+        while (iter != end) {
+            const auto &entry = *iter;
+            if (entry.is_regular_file()) {
+                auto p = entry.path();
+                auto ext = p.extension().string();
+                std::transform(ext.begin(), ext.end(), ext.begin(), [&](char c)->char{ return static_cast<char>(std::tolower(c));});
+                if (ext == ".cpp" || ext == ".cppm" || ext == ".ixx") {
+                    out.files.push_back(std::move(p));
+                }            
+            }
+            ++iter;
         }
+        out.origin = directory;
+    } else {
+        Log::warning("Error open directory {} - code:  {}", directory, ec.message());
     }
 
     return out;
 }
 
-ModuleSourceScanner::Result process_json(const std::filesystem::path &directory, const json::value &js) {
+ModuleResolver::Result process_json(const std::filesystem::path &directory, const json::value &js, std::filesystem::path origin) {
     
-    ModuleSourceScanner::Result result;
+    ModuleResolver::Result result;
+    result.origin = origin;
 
     auto files = js["files"];
     if (files.type() == json::type::array) {
@@ -42,7 +53,7 @@ ModuleSourceScanner::Result process_json(const std::filesystem::path &directory,
     auto prefixes = js["prefixes"];
     if (prefixes.type() == json::type::object) {
         for (auto pfx: prefixes) {
-            ModuleSourceScanner::ModulePrefixMap mp;
+            ModuleResolver::ModulePrefixMap mp;
             mp.prefix = pfx.key();
             if (pfx.type() == json::type::string) {
                 mp.paths.push_back((directory/pfx.as<std::u8string_view>()).lexically_normal());
@@ -62,30 +73,60 @@ ModuleSourceScanner::Result process_json(const std::filesystem::path &directory,
 }
 
 
-ModuleSourceScanner::Result ModuleSourceScanner::loadMap(std::filesystem::path directory)
+ModuleResolver::Result ModuleResolver::loadMap(std::filesystem::path directory)
 {
-    auto json_file = directory/"modules.json";
+    
+    auto json_file = directory;
+    
+    if (!std::filesystem::is_regular_file(json_file)) {
+        json_file = directory/modules_json;
+    }
 
-    std::fstream jsin(json_file);
+    std::ifstream jsin(json_file);
 
     if (jsin.is_open()) {
-        Log::debug("Reading {}", json_file.string());
+
+
+        Log::debug("Reading {}", json_file);
 
         try {
-            json::parser_t pr;
-            json::value v;
-            pr.parse(std::istreambuf_iterator<char>{jsin}, std::istreambuf_iterator<char>{}, v);
-            return process_json(directory, v);
+            std::string data(std::istreambuf_iterator<char>{jsin}, std::istreambuf_iterator<char>{});            
+            return process_json(directory, json::value::from_json(data), json_file);
         } catch (std::exception &e) {
-            Log::error("Failed to parse {} - exception {}", json_file.string(), e.what());
+            Log::error("Failed to parse {} - exception {}", json_file, e.what());
             return {};
         }
     } 
 
-    Log::debug("Can't open {}. Scanning whole directory {}", json_file.filename().string(), directory.string());
+    Log::debug("Can't open {}. Scanning whole directory {}", json_file.filename(), directory);
 
     return scan_directory(directory);
 
 
 
+}
+
+bool ModuleResolver::detect_change(std::filesystem::path directory, std::filesystem::file_time_type treshold) {
+    std::error_code ec;
+    auto wrtm = std::filesystem::last_write_time(directory/modules_json, ec);
+    if (ec != std::error_code{}) {
+        wrtm = std::filesystem::last_write_time(directory, ec);
+        if (ec != std::error_code{}) {   
+            return false;
+        }        
+    }
+    return wrtm > treshold;
+}
+
+bool ModuleResolver::match_prefix(std::string_view prefix,
+                                       std::string_view name) {
+
+    if (prefix.empty()) return true;
+    if (prefix.back() == '%') return name.compare(0, prefix.length()-1, prefix) == 0;
+    if (prefix == name) return true;
+    if (prefix.length() < name.length() && name.compare(0,prefix.length(), prefix) == 0) {
+        return name[prefix.length()] == '.';
+    }
+
+  return false;
 }
