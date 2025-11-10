@@ -17,6 +17,7 @@ void print_info(SourceScanner::Info nfo) {
         case ModuleType::source: typestr = "Source file";break;
         case ModuleType::interface: typestr = "Interface";break;
         case ModuleType::implementation: typestr = "Implementation";break;
+        case ModuleType::partition: typestr = "Partition";break;
         default:break;
     }
     

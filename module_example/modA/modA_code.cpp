@@ -2,7 +2,7 @@ module;
 #include <just_example.hpp>
 
 export module modA;
-import ZZ;
+
 export namespace mymod {
 
     int fact(int c) {

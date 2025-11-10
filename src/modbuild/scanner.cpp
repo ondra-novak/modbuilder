@@ -178,8 +178,6 @@ SourceScanner::Info SourceScanner::scan_string(const std::string_view text) {
     auto r = scan_string_2(text);
     uniq(r.exported);
     uniq(r.required);
-    uniq(r.include_a);
-    uniq(r.include_q);
     return r;
 
 }
@@ -200,6 +198,10 @@ std::string handle_partition(const std::string &name, std::string_view part) {
     return ret;
 }
 
+static inline bool is_paritition(std::string_view name) {
+    return name.find(':') != name.npos;
+}
+
 SourceScanner::Info SourceScanner::scan_string_2(const std::string_view text) {
 
     Info nfo;
@@ -218,7 +220,8 @@ SourceScanner::Info SourceScanner::scan_string_2(const std::string_view text) {
                 s = tkn();
                 if (s.type == TokenType::keyword) { 
                     nfo.name = s.text;
-                    nfo.type = has_export?ModuleType::interface:ModuleType::implementation;
+                    nfo.type = is_paritition(s.text)?ModuleType::partition
+                              :has_export?ModuleType::interface:ModuleType::implementation;
                     cont = false;
                     has_export = false;
                 }               

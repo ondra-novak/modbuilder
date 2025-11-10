@@ -14,6 +14,14 @@ enum class ModuleType {
     */
     implementation,
 
+    ///Module partition includes both interface and implementation
+    /**
+    generates BMI and O
+    but are considered as implementation
+    but can be imported
+     */
+    partition,
+
     ///Ordinary source file
     /**
      Just a source file not declared as module, but still can import

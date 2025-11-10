@@ -65,7 +65,12 @@ public:
      */
     PSource put(Source src);
     void erase(std::filesystem::path file);
-    std::vector<PSource> get_all_imps(std::string module_name) const;
+    ///Search multiple candidates
+    /** some categories can have multiple candidates, for example implementation or partitions
+        @param ref reference
+        @return vector of found candidates
+    */
+    std::vector<PSource> find_multi(Reference ref) const;
     bool is_dirty() const;
     void clear_dirty();
     void set_dirty();

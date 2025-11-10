@@ -2,6 +2,7 @@
 #include <atomic>
 #include <mutex>
 #include "module_resolver.hpp"
+#include "module_type.hpp"
 #include "utils/log.hpp"
 #include "utils/filesystem.hpp"
 #include <queue>
@@ -130,9 +131,9 @@ void ModuleDatabase::erase(std::filesystem::path file) {
     
 }
 
-std::vector<ModuleDatabase::PSource> ModuleDatabase::get_all_imps(std::string module_name) const {
+std::vector<ModuleDatabase::PSource> ModuleDatabase::find_multi(Reference ref) const {
     std::shared_lock _(_mx);
-    auto iter = _moduleIndex.find(Reference{ModuleType::implementation, std::move(module_name)});
+    auto iter = _moduleIndex.find(ref);
     if (iter == _moduleIndex.end()) return {};
     else return iter->second;
 }
@@ -225,14 +226,18 @@ void ModuleDatabase::discover_new_files(AbstractCompiler &compiler) {
 ModuleDatabase::Source ModuleDatabase::from_scanner(const std::filesystem::path &source_file,
                                     const SourceScanner::Info &nfo) {
   
+    auto reftype = [](std::string_view name) {
+        return name.find(':') != name.npos?ModuleType::partition:ModuleType::interface;
+    };
+
     Source out;
     out.name = nfo.name;
     out.type = nfo.type;
     for (const auto &r: nfo.required) {
-        out.references.push_back(Reference{ModuleType::interface, r});
+        out.references.push_back(Reference{reftype(r), r});
     }
     for (const auto &r: nfo.exported) {
-        out.exported.push_back(Reference{ModuleType::interface, r});
+        out.exported.push_back(Reference{reftype(r), r});
     }
     for (const auto &r: nfo.include_a) {
         out.references.push_back(Reference{ModuleType::system_header, r});
@@ -343,15 +348,15 @@ std::vector<ModuleDatabase::CompilePlan> ModuleDatabase::create_compile_plan(con
         iter = std::move(q.front());
         q.pop();
         for (auto &r: iter->references) {
-            auto f = find(r);
-            if (f) {
+            auto fs = find_multi(r);
+            for (auto f: fs) {
                 if (all_files.insert(f).second) {
                     q.push(std::move(f));
                 }
             }
             //include all known implementations
             if (r.type == ModuleType::interface) {
-                auto imps = get_all_imps(r.name);
+                auto imps = find_multi(Reference{ModuleType::implementation,r.name});
                 for (auto &i: imps) {
                     if (all_files.insert(i).second) {
                         q.push(std::move(i));
@@ -384,8 +389,9 @@ void ModuleDatabase::collectReexports(PSource src,
     for (auto &r: src->exported) {
         auto f = find(r);
         if (f) {
+            exports.push_back(f);            
             auto iter = std::find(exports.begin(), exports.end(), f);
-            if (iter != exports.end()) {
+            if (iter == exports.end()) {
                 exports.push_back(f);
                 collectReexports(f, exports);
             }
