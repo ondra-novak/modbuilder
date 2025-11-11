@@ -1,11 +1,11 @@
 #pragma once
 
 
-#include "utils/arguments.hpp"
+#include "arguments.hpp"
 #include <cctype>
 #include <charconv>
 #include <filesystem>
-#include "module_type.hpp"
+#include "../module_type.hpp"
 
 inline ArgumentString product_name(ModuleType type, const std::filesystem::path &source, std::string_view ext) {
     auto path = path_arg(source.parent_path());

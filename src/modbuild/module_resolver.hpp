@@ -1,4 +1,5 @@
 #pragma once
+#include "origin_env.hpp"
 #include <vector>
 #include <filesystem>
 
@@ -13,12 +14,12 @@ public:
     struct Result {
         std::vector<std::filesystem::path> files;
         std::vector<ModulePrefixMap> mapping;      
-        std::filesystem::path origin;
+        OriginEnv env;
     };
 
 
-    static Result loadMap(std::filesystem::path directory);
-    static bool detect_change(std::filesystem::path directory, std::filesystem::file_time_type treshold);
+    static Result loadMap(const std::filesystem::path &directory);
+    static bool detect_change(const OriginEnv &env, std::filesystem::file_time_type treshold);
 
     static std::string_view modules_json;
 

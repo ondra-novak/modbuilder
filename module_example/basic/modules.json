@@ -7,5 +7,7 @@
     ],
     "prefixes":{
         "": "../modA"
-    }
+    },
+    "work_dir":"."
+
 }

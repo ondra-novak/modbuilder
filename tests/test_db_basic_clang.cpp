@@ -10,13 +10,12 @@ int main() {
     auto path = std::filesystem::path("module_example/basic/test.cpp");
     path = std::filesystem::canonical(path);
     std::vector<ArgumentString> args = {
-        inline_arg("clang++"),
-        inline_arg("-Imodule_example/includes"),
+        inline_arg("clang++")        
     };
     auto compiler = CompilerClang::create(args, std::filesystem::current_path());
 
     ModuleDatabase db;
-    auto unsat = db.rescan_file(path, path.parent_path(), *compiler, true);
+    auto unsat = db.rescan_file_discovery(nullptr, path, *compiler);
 
     for (auto &x: unsat) std::cout << x.name << std::endl;
     

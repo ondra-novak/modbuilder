@@ -11,7 +11,9 @@ target_sources(modbuildlb PRIVATE
         module_resolver.cpp
         module_database.cpp
         scanner.cpp
+        builder.cpp
         discovery.cpp
+        app.cpp
         utils/log.cpp
         utils/process.cpp
         utils/temp_file.cpp

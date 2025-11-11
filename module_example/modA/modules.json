@@ -1,0 +1,8 @@
+{
+    "files":[
+        "modA_code.cpp"
+    ],
+    "work_dir":".",
+    "includes":["../includes"]
+
+}

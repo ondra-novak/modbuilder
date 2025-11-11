@@ -27,8 +27,8 @@ void print_info(SourceScanner::Info nfo) {
     std::cout << "Type: " << typestr << std::endl;
     std::cout << "Requires:" ;   print_list(nfo.required);
     std::cout << "Re-exports:"; print_list(nfo.exported);
-    std::cout << "Headers quoted:"; print_list(nfo.include_q);
-    std::cout << "Headers angled:"; print_list(nfo.include_a);
+    std::cout << "Headers quoted:"; print_list(nfo.user_headers);
+    std::cout << "Headers angled:"; print_list(nfo.system_headers);
     std::cout << "---------" << std::endl;
 }
 

@@ -2,11 +2,22 @@
 #include <fstream>
 #include <json/parser.h>
 #include <json/value.h>
+#include "utils/hash.hpp"
 #include "utils/log.hpp"
 #include "utils/filesystem.hpp"
 
 
 std::string_view ModuleResolver::modules_json = "modules.json";
+
+void calculate_hash(ModuleResolver::Result &result) {
+    std::hash<std::filesystem::path> hasher_p;
+    std::hash<std::string> hasher_s;
+    std::size_t h = hasher_p(result.env.working_dir);;
+    for (const auto &p: result.env.includes) h = hash_combine(h, hasher_p(p));
+    for (const auto &p: result.env.options) h = hash_combine(h, hasher_s(p));
+    result.env.settings_hash = h;
+
+}
 
 ModuleResolver::Result scan_directory(const std::filesystem::path &directory) {
 
@@ -28,7 +39,9 @@ ModuleResolver::Result scan_directory(const std::filesystem::path &directory) {
             }
             ++iter;
         }
-        out.origin = directory;
+        out.env.config_file = directory;
+        out.env.working_dir = directory;
+        calculate_hash(out);
     } else {
         Log::warning("Error open directory {} - code:  {}", directory, ec.message());
     }
@@ -36,10 +49,16 @@ ModuleResolver::Result scan_directory(const std::filesystem::path &directory) {
     return out;
 }
 
-ModuleResolver::Result process_json(const std::filesystem::path &directory, const json::value &js, std::filesystem::path origin) {
+ModuleResolver::Result process_json(const std::filesystem::path &json_file, const json::value &js, std::filesystem::path origin) {
     
     ModuleResolver::Result result;
-    result.origin = origin;
+    result.env.config_file = origin;
+    auto directory = json_file.parent_path();
+
+    auto workdir = js["workdir"];
+    if (workdir.type() == json::type::string) {
+        directory =  std::filesystem::canonical(workdir.as<std::u8string>());
+    }
 
     auto files = js["files"];
     if (files.type() == json::type::array) {
@@ -69,11 +88,25 @@ ModuleResolver::Result process_json(const std::filesystem::path &directory, cons
             result.mapping.push_back(std::move(mp));
         }        
     }
+    auto includes = js["includes"];
+    if (includes.type() == json::type::array) {
+        result.env.includes.reserve(includes.size());
+        for (auto inc: includes) {
+            result.env.includes.push_back(std::filesystem::canonical(directory/inc.as<std::u8string>()));
+        }
+    }
+    auto options = js["options"];
+    if (options.type() == json::type::array) {
+        result.env.options.reserve(options.size());
+        for (auto opt: options) result.env.options.push_back(opt.as<std::string>());
+    }
+    result.env.working_dir = std::move(directory);
+    calculate_hash(result);
     return result;
 }
 
 
-ModuleResolver::Result ModuleResolver::loadMap(std::filesystem::path directory)
+ModuleResolver::Result ModuleResolver::loadMap(const std::filesystem::path &directory)
 {
     
     auto json_file = directory;
@@ -91,9 +124,9 @@ ModuleResolver::Result ModuleResolver::loadMap(std::filesystem::path directory)
 
         try {
             std::string data(std::istreambuf_iterator<char>{jsin}, std::istreambuf_iterator<char>{});            
-            return process_json(directory, json::value::from_json(data), json_file);
+            return process_json(json_file, json::value::from_json(data), json_file);
         } catch (std::exception &e) {
-            Log::error("Failed to parse {} - exception {}", json_file, e.what());
+            Log::error("Failed to parse {} - error: {}", json_file, e.what());
             return {};
         }
     } 
@@ -106,14 +139,11 @@ ModuleResolver::Result ModuleResolver::loadMap(std::filesystem::path directory)
 
 }
 
-bool ModuleResolver::detect_change(std::filesystem::path directory, std::filesystem::file_time_type treshold) {
-    std::error_code ec;
-    auto wrtm = std::filesystem::last_write_time(directory/modules_json, ec);
+bool ModuleResolver::detect_change(const OriginEnv &env, std::filesystem::file_time_type treshold) {
+    std::error_code ec;    
+    auto wrtm = std::filesystem::last_write_time(env.config_file, ec);
     if (ec != std::error_code{}) {
-        wrtm = std::filesystem::last_write_time(directory, ec);
-        if (ec != std::error_code{}) {   
-            return false;
-        }        
+        return true;    //not exists? mark as changed
     }
     return wrtm > treshold;
 }

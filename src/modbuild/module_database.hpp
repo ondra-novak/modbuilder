@@ -3,10 +3,10 @@
 #include "module_type.hpp"
 #include "scanner.hpp"
 #include "utils/hash.hpp"
+#include "origin_env.hpp"
 #include <chrono>
 #include <json/value.h>
 #include <filesystem>
-#include <shared_mutex>
 #include <unordered_map>
 #include <vector>
 
@@ -31,22 +31,26 @@ public:
         bool recompile = true;         ///<this file needs to be recompiled
     };
 
+
+
     struct Source {
         std::filesystem::path source_file ={};
         ModuleType type = {};
         std::string name = {};
+        POriginEnv origin = {};
         std::vector<Reference> references = {};
         std::vector<Reference> exported = {};
         std::filesystem::path object_path = {};
         std::filesystem::path bmi_path = {};
-        std::filesystem::path origin = {};      //directory/file where file was found
         State state = {};
     };
+
 
     using PSource = std::shared_ptr<Source>;
 
     using FileIndex = std::unordered_map<std::filesystem::path, PSource>;
     using ModuleIndex = std::unordered_map<Reference, std::vector<PSource>, MethodHash >;
+    using OriginMap = std::unordered_map<std::filesystem::path, POriginEnv>;
 
 
     json::value export_db() const;
@@ -75,9 +79,10 @@ public:
     void clear_dirty();
     void set_dirty();
 
+
     ///checks whether files are modified and updates their states accordingly
     /** It also populates recompile state to ensure correct dependency */
-    void update_files_state();
+    void update_files_state(AbstractCompiler &compiler);
 
     ///Create Source from scanner informations
     static Source from_scanner(const std::filesystem::path &source_file, const SourceScanner::Info &nfo);
@@ -86,13 +91,16 @@ public:
 
     ///Rescan simple file
     /**
+     * @param origin file's origin. Can be null, if file is inline (command line specified)
      * @param source_file path
      * @param compiler compiler to use
-     * @param discovery set true if you need to discover all 
      */
-    Unsatisfied rescan_file(const std::filesystem::path &source_file,
-            const std::filesystem::path &origin, 
-            AbstractCompiler &compiler, bool discovery);
+    Unsatisfied rescan_file(POriginEnv origin, const std::filesystem::path &source_file,
+            AbstractCompiler &compiler);
+
+    ///rescan file, discover all modules by reading modules.json
+    Unsatisfied rescan_file_discovery(POriginEnv origin, const std::filesystem::path &source_file,
+            AbstractCompiler &compiler);
 
     Unsatisfied rescan_directories(std::span<const Reference> unsatisfied, 
             AbstractCompiler &compiler,
@@ -108,13 +116,14 @@ public:
 
     std::vector<CompilePlan> create_compile_plan(const std::filesystem::path &source_file) const;
 
+
 protected:
     FileIndex _fileIndex;
     ModuleIndex _moduleIndex;
+    OriginMap _originMap;
     std::chrono::system_clock::time_point _modify_time; //time when database was modified
     std::chrono::system_clock::time_point _import_time;   //time when database was imported
     std::atomic<bool> _modified;     //database has been modified
-    mutable std::shared_mutex _mx;
 
     void collectReexports(PSource src, std::vector<PSource> &exports) const;
 

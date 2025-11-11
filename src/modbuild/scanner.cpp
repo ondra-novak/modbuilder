@@ -152,9 +152,9 @@ auto simple_tokenizer(std::string_view text) {
 
 }
 
-SourceScanner::Info SourceScanner::scan_file(const std::filesystem::path &path) {
+SourceScanner::Info SourceScanner::scan_file(const OriginEnv &env, const std::filesystem::path &path) {
 
-    std::string text = _compiler.preproces(path);
+    std::string text = _compiler.preproces(env, path);
     return scan_string(text);
 
 }
@@ -178,6 +178,8 @@ SourceScanner::Info SourceScanner::scan_string(const std::string_view text) {
     auto r = scan_string_2(text);
     uniq(r.exported);
     uniq(r.required);
+    uniq(r.system_headers);
+    uniq(r.user_headers);
     return r;
 
 }
@@ -235,9 +237,9 @@ SourceScanner::Info SourceScanner::scan_string_2(const std::string_view text) {
                         nfo.required.push_back(std::string(s.text));
                         cont = false;
                     } else if (s.type == TokenType::string) {
-                        nfo.include_q.push_back(std::string(s.text));
+                        nfo.user_headers.push_back(std::string(s.text));
                     } else  if (s.type == TokenType::angled_include) {
-                        nfo.include_a.push_back(std::string(s.text));
+                        nfo.system_headers.push_back(std::string(s.text));
                     }
                 }
             }
@@ -267,9 +269,9 @@ SourceScanner::Info SourceScanner::scan_string_2(const std::string_view text) {
                         has_export = false;  
                     }                 
                 } else if (s.type == TokenType::string) {
-                    nfo.include_q.push_back(std::string(s.text));
+                    nfo.user_headers.push_back(std::string(s.text));
                 } else  if (s.type == TokenType::angled_include) {
-                    nfo.include_a.push_back(std::string(s.text));
+                    nfo.system_headers.push_back(std::string(s.text));
                 }                
             }
         }

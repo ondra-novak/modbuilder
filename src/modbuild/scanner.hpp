@@ -15,13 +15,12 @@ public:
         std::string name;     //logical name of this module  (FQN for partition)
         ModuleType type = ModuleType::source;
         std::vector<std::string> required;  //list of logical names of required modules (partitions are FQN)
-        std::vector<std::string> partitions; //list of logical names of imported partitions
         std::vector<std::string> exported; //list of logical names of exported modules (must be also included as required)
-        std::vector<std::string> include_q; //list of includes 
-        std::vector<std::string> include_a; //list of angled includes
+        std::vector<std::string> user_headers; //list of includes 
+        std::vector<std::string> system_headers; //list of angled includes
     };
 
-    Info scan_file(const std::filesystem::path &path);
+    Info scan_file(const OriginEnv &env, const std::filesystem::path &path);
 
     static Info scan_string(std::string_view text);
 

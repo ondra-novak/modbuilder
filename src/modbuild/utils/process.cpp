@@ -1,6 +1,7 @@
 // file: process_spawn.hpp
 
 #include "process.hpp"
+#include "log.hpp"
 #include <cstddef>
 #include <filesystem>
 #include <numeric>
@@ -104,6 +105,15 @@ Process Process::spawn(const std::filesystem::path & path,
         *ptr_iter = nullptr;
     }
     
+    Log::debug("running: {}", [&]()->std::string {
+        std::ostringstream buff;
+        buff << path.filename().string();
+        for (std::size_t i = 1; i < pointers.size(); ++i) {
+            buff << " " << pointers[i];
+        }
+        return buff.str();
+    });
+
     pid_t child_pid;
     int rc = posix_spawnp(&child_pid,
                             pathstr.c_str(),

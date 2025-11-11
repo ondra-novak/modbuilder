@@ -33,6 +33,11 @@ struct Log {
     }
 
     template<typename ... Args>
+    static void verbose(std::format_string<Args...> fmt, Args && ... args) {
+        output(Level::verbose, std::move(fmt), std::forward<Args>(args)...);
+    }
+
+    template<typename ... Args>
     static void warning(std::format_string<Args...> fmt, Args && ... args) {
         output(Level::warning, std::move(fmt), std::forward<Args>(args)...);
         
@@ -40,7 +45,7 @@ struct Log {
 
     template<typename ... Args>
     static void output(Level level, std::format_string<Args...> fmt, Args && ... args) {
-        if (disabled_level > level) return;
+        if (disabled_level < level) return;
         auto buf = get_buffer(level);        
         std::format_to(std::back_inserter(buf), fmt, std::forward<Args>(args)...);
         send_buffer(level, buf);

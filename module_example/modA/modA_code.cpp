@@ -2,6 +2,7 @@ module;
 #include <just_example.hpp>
 
 export module modA;
+import <just_example.hpp>
 
 export namespace mymod {
 
