@@ -1,7 +1,7 @@
 #pragma once
 #include "../../abstract_compiler.hpp"
 #include "../../utils/arguments.hpp"
-
+#if 0
 class CompilerGcc : public AbstractCompiler {
 public:
 
@@ -29,3 +29,5 @@ protected:
 
     
 };
+
+#endif

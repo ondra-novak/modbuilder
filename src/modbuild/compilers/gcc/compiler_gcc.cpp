@@ -1,9 +1,10 @@
 #include "compiler_gcc.hpp"
+#include "factory.hpp"
 #include <memory>
 #include <utils/arguments.hpp>
 #include <utils/process.hpp>
 
-
+#if 0
 int CompilerGcc::link([[maybe_unused]] std::filesystem::path binary,
                         [[maybe_unused]] std::span<const std::filesystem::path> objects) const {
     throw std::runtime_error("not implemented");
@@ -32,5 +33,12 @@ int CompilerGcc::compile(ArgumentString source_ref,
         ModuleReferenceType type,
         std::span<const ModuleMapping> modules,
         CompileResult &result) const {
+
+}
+#endif
+
+std::unique_ptr<AbstractCompiler> create_compiler_gcc( AbstractCompiler::Config) {
+    throw std::runtime_error("Currently unsupported");
+    return {};
 
 }

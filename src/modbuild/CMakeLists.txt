@@ -1,6 +1,6 @@
-#add_subdirectory(compilers/msvc)
+add_subdirectory(compilers/msvc)
 add_subdirectory(compilers/clang)
-#add_subdirectory(compilers/gcc)
+add_subdirectory(compilers/gcc)
 
 
 
@@ -13,16 +13,16 @@ target_sources(modbuildlb PRIVATE
         scanner.cpp
         builder.cpp
         discovery.cpp
-        app.cpp
+        cli.cpp
         utils/log.cpp
         utils/process.cpp
         utils/temp_file.cpp
 )   
 
 target_link_libraries(modbuildlb PRIVATE
-#       $<TARGET_OBJECTS:compiler_msvc>
+       $<TARGET_OBJECTS:compiler_msvc>
        $<TARGET_OBJECTS:compiler_clang>
-#       $<TARGET_OBJECTS:compiler_gcc>
+       $<TARGET_OBJECTS:compiler_gcc>
 )
 
 target_sources(modbuild PRIVATE main.cpp)

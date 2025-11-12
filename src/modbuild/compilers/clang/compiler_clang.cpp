@@ -1,4 +1,5 @@
 #include "compiler_clang.hpp"
+#include "factory.hpp"
 #include "module_type.hpp"
 #include <filesystem>
 #include <stdexcept>
@@ -118,4 +119,8 @@ int CompilerClang::compile(const OriginEnv &env, const std::filesystem::path &so
         return p.waitpid_status();
     }
 
+}
+
+std::unique_ptr<AbstractCompiler> create_compiler_clang(AbstractCompiler::Config cfg) {
+    return std::make_unique<CompilerClang>(std::move(cfg));
 }
