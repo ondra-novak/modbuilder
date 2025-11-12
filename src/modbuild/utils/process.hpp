@@ -33,10 +33,8 @@ public:
 
     static Process spawn(const std::filesystem::path & path,
                          const std::filesystem::path & workdir,
-                         const std::vector<ArgumentString>& args);
-    static Process spawn_noredir(const std::filesystem::path & path,
-                         const std::filesystem::path & workdir,
-                         const std::vector<ArgumentString>& args);
+                         const std::span<const ArgumentString>& args,
+                         bool no_streams);
 
 
 };

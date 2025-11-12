@@ -480,6 +480,25 @@ std::vector<ModuleDatabase::CompilePlan> ModuleDatabase::create_compile_plan(con
     return out;
 }
 
+std::vector<ModuleDatabase::CompilePlan> ModuleDatabase::create_recompile_plan() const
+{
+    std::vector<CompilePlan> out;
+    for (auto &[_,f]: _fileIndex) {
+        CompilePlan c;
+        c.sourceInfo = f;
+        for (auto &r: c.sourceInfo->references) {
+            auto g= find(r);
+            if (g) {
+                c.references.push_back(g);
+                collectReexports(g, c.references);
+            }
+        }
+        out.push_back(std::move(c));
+    }
+    return out;
+
+}
+
 void ModuleDatabase::collectReexports(PSource src,
                                       std::vector<PSource> &exports) const {
     for (auto &r: src->exported) {

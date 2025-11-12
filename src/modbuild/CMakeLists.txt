@@ -13,6 +13,7 @@ target_sources(modbuildlb PRIVATE
         scanner.cpp
         builder.cpp
         discovery.cpp
+        abstract_compiler.cpp
         cli.cpp
         utils/log.cpp
         utils/process.cpp

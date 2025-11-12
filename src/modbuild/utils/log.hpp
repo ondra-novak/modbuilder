@@ -43,9 +43,13 @@ struct Log {
         
     }
 
+    static bool is_level_enabled(Level level) {
+        return (disabled_level >= level);
+    }
+
     template<typename ... Args>
     static void output(Level level, std::format_string<Args...> fmt, Args && ... args) {
-        if (disabled_level < level) return;
+        if (!is_level_enabled(level)) return;
         auto buf = get_buffer(level);        
         std::format_to(std::back_inserter(buf), fmt, std::forward<Args>(args)...);
         send_buffer(level, buf);

@@ -25,6 +25,8 @@ struct AppSettings {
     Mode mode = compile_and_link;
     bool show_help = false;
     bool recompile = false;
+    bool keep_going = false;
+    bool dry_run = false;
 
 };
 

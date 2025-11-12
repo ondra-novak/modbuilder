@@ -1,4 +1,5 @@
 #include "abstract_compiler.hpp"
+#include "builder.hpp"
 #include "cli.hpp"
 #include "app.hpp"
 #include "module_database.hpp"
@@ -144,11 +145,23 @@ int tmain(int argc, ArgumentString::value_type *argv[]) {
             db.rescan_directories({},*compiler, settings.env_file_json);
         }
         db.rescan_file(nullptr, settings.source_file_path, *compiler);
-        auto plan = db.create_compile_plan(settings.source_file_path);
-
-        
-
-        return 0;
+        auto plan = settings.recompile?
+            db.create_recompile_plan():
+            db.create_compile_plan(settings.source_file_path);
+        Builder b(settings.threads, *compiler);
+        bool r = settings.mode == AppSettings::link_only || b.build(plan,!settings.keep_going).get();        
+        int res = 2;
+        if (settings.keep_going || !r) {
+            if (settings.mode == AppSettings::compile_only) return 0;
+            if (settings.recompile) plan = db.create_compile_plan(settings.source_file_path);
+            std::vector<std::filesystem::path> objects;
+            for (auto &p: plan) {
+                auto &obj = p.sourceInfo->object_path;
+                if (!obj.empty()) objects.push_back(obj);
+            }
+            res = compiler->link(objects);
+        }
+        return res;
     } catch (std::exception &e) {
         Log::error("{}", e.what());
         return 1;

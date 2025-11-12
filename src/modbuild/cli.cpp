@@ -23,12 +23,14 @@ Switches
 ========
 -jN       specify count of thread
 -p<type>  select compiler type: gcc|clang|msvc
--c<path>  generate compile_commands.json (where
+-c<path>  generate compile_commands.json (path=where)
 -f<file>  specify environment file (modules.json) for this build
 -b<dir>   specify build directory
 -C        compile only (doesn't run linker)
 -L        link only (requires compiled files in build directory)
+-k        keep going
 -r        recompile whole database even if modules are not referenced
+-y        dry-run don't compile (but can generate compile_commans.json)
 -s        output only errors (silent)
 -d        debug mode (output everyting)
 
@@ -78,6 +80,7 @@ bool parse_cmdline(AppSettings &settings, CliReader<ArgumentString::value_type> 
             case 's': Log::set_level(Log::Level::error);break;
             case 'd': Log::set_level(Log::Level::debug);break;            
             case 'h': settings.show_help = true;break;
+            case 'k': settings.keep_going = true;break;
         }
     }
     {

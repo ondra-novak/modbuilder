@@ -14,8 +14,7 @@ public:
         std::span<const ModuleMapping> modules,
         CompileResult &result) const override;
     
-    virtual int link(std::filesystem::path binary, 
-        std::span<const std::filesystem::path> objects) const override;
+    virtual int link(std::span<const std::filesystem::path> objects) const override;
 
         virtual std::string preproces(
                 const OriginEnv &env,
@@ -28,6 +27,13 @@ public:
         std::span<const ArgumentString> arguments,
         std::filesystem::path workdir
     );
+
+    virtual bool generate_compile_command(const OriginEnv &env,
+                                        const std::filesystem::path &source, 
+                                        ModuleType type,
+                                        std::span<const ModuleMapping> modules,
+                                        std::vector<ArgumentString> &result) const override;
+
 
     virtual void initialize_module_map(std::span<const ModuleMapping> ) override {}
 

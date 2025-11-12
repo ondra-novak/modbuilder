@@ -119,6 +119,7 @@ public:
     };
 
     std::vector<CompilePlan> create_compile_plan(const std::filesystem::path &source_file) const;
+    std::vector<CompilePlan> create_recompile_plan() const;
 
 
 protected:

@@ -14,6 +14,7 @@ public:
     struct CompileResult {
         std::filesystem::path interface;
         std::filesystem::path object;
+        std::vector<ArgumentString> compile_arguments;
     };
 
     struct ModuleMapping {
@@ -26,6 +27,7 @@ public:
         std::vector<ArgumentString> compile_options;
         std::vector<ArgumentString> link_options;
         std::filesystem::path working_directory;
+        bool dry_run;
     };
 
     virtual ~AbstractCompiler() = default;
@@ -59,8 +61,24 @@ public:
         std::span<const ModuleMapping> modules,
         CompileResult &result) const = 0;
     
-    virtual int link(std::filesystem::path binary, 
-        std::span<const std::filesystem::path> objects) const = 0;
+
+    ///Generates compile command
+    /**
+     * @param env environment of file's origin
+     * @param source source file
+     * @param type type of module
+     * @param modules list of module mappings - it contains module name and path to BMI file (as returned from previous compile)
+     * @param result filled with command which was execute to compile
+     * @retval true generated
+     * @retval false this file cannot be added to compiled_commands
+     */
+    virtual bool generate_compile_command(const OriginEnv &env,
+                                          const std::filesystem::path &source, 
+                                          ModuleType type,
+                                          std::span<const ModuleMapping> modules,
+                                          std::vector<ArgumentString> &result) const = 0;
+
+    virtual int link(std::span<const std::filesystem::path> objects) const = 0;
 
 
     
@@ -114,5 +132,6 @@ public:
         std::filesystem::create_directories(file_path.parent_path());
     }
 
-
+    static int spawn_compiler(const Config &cfg, const std::filesystem::path &workdir, std::span<const ArgumentString> arguments, std::vector<ArgumentString> *dump_cmdline = nullptr);
+    
 };

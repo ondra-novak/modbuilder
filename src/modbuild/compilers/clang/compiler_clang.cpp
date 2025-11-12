@@ -24,9 +24,13 @@ std::vector<ArgumentString> CompilerClang::prepare_args(const OriginEnv &env) {
 }
 
 
-int CompilerClang::link([[maybe_unused]] std::filesystem::path binary,
-                            [[maybe_unused]] std::span<const std::filesystem::path> objects) const {
-    throw std::runtime_error("not implemented");
+int CompilerClang::link(std::span<const std::filesystem::path> objects) const {
+    std::vector<ArgumentString> args = _config.link_options;
+    std::transform(objects.begin(), objects.end(), std::back_inserter(args), [](const auto &p){
+        return path_arg(p);
+    });
+    return spawn_compiler(_config, _config.working_directory, args,nullptr);
+
 }
 
 std::string CompilerClang::preproces(const OriginEnv &env,const std::filesystem::path &file) const {
@@ -36,7 +40,7 @@ std::string CompilerClang::preproces(const OriginEnv &env,const std::filesystem:
     args.emplace_back(preprocess_flag);
     args.emplace_back(path_arg(file));
     
-    Process p = Process::spawn(_config.program_path, _config.working_directory, std::move(args));
+    Process p = Process::spawn(_config.program_path, _config.working_directory, std::move(args), false);
 
     std::string out((std::istreambuf_iterator<char>(*p.stdout_stream)),
                      std::istreambuf_iterator<char>());
@@ -58,6 +62,7 @@ int CompilerClang::compile(const OriginEnv &env, const std::filesystem::path &so
     
     auto args = prepare_args(env);
     args.insert(args.begin(), _config.compile_options.begin(), _config.compile_options.end());
+    auto arglen = args.size();
 
     for (const auto &m: modules) {
         ArgumentString cmd (fmodule_file);
@@ -77,8 +82,7 @@ int CompilerClang::compile(const OriginEnv &env, const std::filesystem::path &so
             args.emplace_back(path_arg(source_ref));
             args.emplace_back(output_flag);
             args.emplace_back(path_arg(result.interface));
-            Process p = Process::spawn_noredir(_config.program_path, env.working_dir, args);
-            return p.waitpid_status();
+            return spawn_compiler(_config, env.working_dir, args);
         }
         case ModuleType::system_header: {
             result.interface = get_bmi_path(type, source_ref);
@@ -88,9 +92,9 @@ int CompilerClang::compile(const OriginEnv &env, const std::filesystem::path &so
             args.emplace_back(path_arg(source_ref));
             args.emplace_back(output_flag);
             args.emplace_back(path_arg(result.interface));
-            Process p = Process::spawn_noredir(_config.program_path, env.working_dir, args);
-            return p.waitpid_status();
+            return spawn_compiler(_config, env.working_dir, args);
         }
+        case ModuleType::partition:
         case ModuleType::interface: {
             result.interface = get_bmi_path(type, source_ref);
             ensure_path_exists(result.interface);
@@ -99,9 +103,9 @@ int CompilerClang::compile(const OriginEnv &env, const std::filesystem::path &so
             args.emplace_back(path_arg(source_ref));
             args.emplace_back(output_flag);
             args.emplace_back(path_arg(result.interface));
-            Process p = Process::spawn_noredir(_config.program_path, env.working_dir, args);
-            int r =  p.waitpid_status();
+            int r =  spawn_compiler(_config, env.working_dir, args);
             if (r) return r;
+            args.resize(arglen);
             break;
         }
         
@@ -115,11 +119,29 @@ int CompilerClang::compile(const OriginEnv &env, const std::filesystem::path &so
         args.emplace_back(path_arg(source_ref));
         args.emplace_back(output_flag);
         args.emplace_back(path_arg(result.object));
-        Process p = Process::spawn_noredir(_config.program_path,_config.working_directory, args);
-        return p.waitpid_status();
+        return  spawn_compiler(_config, env.working_dir, args, &result.compile_arguments);
     }
 
 }
+
+bool CompilerClang::generate_compile_command(const OriginEnv &env,
+                                        const std::filesystem::path &source, 
+                                        ModuleType type,
+                                        std::span<const ModuleMapping> modules,
+                                        std::vector<ArgumentString> &result) const {
+    if (type == ModuleType::system_header || type == ModuleType::user_header) {
+        return false;
+    }
+    result = prepare_args(env);
+    result.insert(result.begin(), _config.compile_options.begin(), _config.compile_options.end());
+    result.emplace_back(compile_flag);
+    result.emplace_back(path_arg(source));
+    result.emplace_back(output_flag);
+    result.emplace_back(path_arg(get_obj_path(type, source)));
+    return true;
+
+}
+
 
 std::unique_ptr<AbstractCompiler> create_compiler_clang(AbstractCompiler::Config cfg) {
     return std::make_unique<CompilerClang>(std::move(cfg));
