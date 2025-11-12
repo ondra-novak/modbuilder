@@ -18,37 +18,36 @@ bool App::arg_show_help()  {
         "modbuild [...switches...] <file.cpp>  <compiler> [...compiler/linker..flags...]\n"
         "\n"
         "Switches:\n"
-        "=========\n";
-    for (auto &c: program_args) {
-
-        if (!c.short_switch && c.long_switch.empty()) {
-            std::cout << c.name;
-            for (int i = c.name.size()/8; i < 3; ++i) std::cout<<'\t';
-        }
-        else {
-            if (c.short_switch) std::cout << "-" << c.short_switch;
-            std::cout << '\t';
-            if (!c.long_switch.empty()) {
-                std::cout << "--" << c.long_switch;
-                if (c.long_switch.size()<6) std::cout << '\t';
-            } else {
-                std::cout << '\t';
-            }
-            std::cout << '\t';
-        }
-        std::cout << c.help << std::endl;
-    }
-    std::cout << "<compiler_path>\tPath to compiler (for example /usr/bin/g++)\n" 
-                 "\n"
-                 "Compiler/Linker switches"
-                 "========================"
-                 "All following arguments are directly passed to the compiler\n"
-                 "However there are special arguments with following meaning\n"
-                 "\n"
-                 "--compile:\tFollowing arguments are passed only during a compile phase\n" 
-                 "--link:   \tFollowing arguments are passed only a link phase\n"                  
-                 "\n"
-                 "Example: gcc -DSPECIAL -I/usr/local/include --compile: -O2 -march=native --link: -o example -lthread\n";
+        "=========\n"
+        "-jN          specify count of threads\n"
+        "-p<type>  select compiler type: gcc|clang|msvc \n"
+        "-c<path>  generate compile_commands.json (where)\n"
+        "-s        output only errors (silent)\n"
+        "-d        debug mode (output everyting)\n"
+        "-f<file>  specify environment file (modules.json) for this build\n"
+        "-b<dir>   specify build directory\n"
+        "-C        compile only (don't run linker)\n"
+        "-L        link only (requires compiled files in build directory)\n"
+        "-W        specified file is modules.json to compile (all files)\n"
+        "\n"
+        "file.cpp  specifies path to file to compile. If -W is used, then\n"
+        "          then it specifies pathname to modules-like json file\n"
+        "          to compile\n"
+        "\n"
+        "compiler  path to compiler's binary. PATH is used to search binary\n"
+        "\n"
+        "Compiler arguments\n"
+        "=================\n"
+        "Any arguments here are copied to command-line when compiler is invoked\n"
+        "However, there are switches that have special meaning (are not copied)\n"
+        "Note these switches end with colon\n"
+        "\n"
+        "--compile:  following arguments are used only during compilation phase\n"
+        "--link:     following arguments are used only during link phase\n"
+        "--lib:      produces library (will not link), following argumenst are \n"
+        "            used for librarian tool\n"
+        "\n"
+        "Example: gcc -DSPECIAL -I/usr/local/include --compile: -O2 -march=native --link: -o example -lthread\n";
 
     exit(0);
     return true;
@@ -68,7 +67,7 @@ int tmain(int argc, T *argv[]) {
         std::cerr << "No source file specified, type h for help";
         return 1;
     }
-    if (!rd) {
+    if (!cmdline) {
         std::cerr << "Expected more arguments (compiler)";
         return 1;
     }
