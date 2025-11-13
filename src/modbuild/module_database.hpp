@@ -17,10 +17,10 @@ public:
 
     struct Reference {
         ModuleType type;
-        std::string name;
-        constexpr bool operator==(const Reference &other) const  = default;
+        std::string name;   //user header contains absolute path
+        bool operator==(const Reference &other) const  = default;
 
-        constexpr std::size_t hash() const {
+        std::size_t hash() const {
             std::hash<std::string> hasher;
             return hash_combine(hasher(name), static_cast<std::size_t>(type));
         }
@@ -31,6 +31,12 @@ public:
         bool recompile = true;         ///<this file needs to be recompiled
     };
 
+    struct ReferenceAndAlias: Reference {
+        std::string alias;  //uses by user header and contains how header appear in source file
+        constexpr bool operator==(const Reference &other) const {
+            return Reference::operator==(other);
+        }
+    };
 
 
     struct Source {
@@ -38,7 +44,7 @@ public:
         ModuleType type = {};
         std::string name = {};
         POriginEnv origin = {};
-        std::vector<Reference> references = {};
+        std::vector<ReferenceAndAlias> references = {};
         std::vector<Reference> exported = {};
         std::filesystem::path object_path = {};
         std::filesystem::path bmi_path = {};
@@ -113,9 +119,17 @@ public:
     ///runs discover process for added files. It creates map of directories from current files
     void discover_new_files(AbstractCompiler &compiler);
 
+
+    struct CompilePlanReference {
+        std::string name;
+        PSource source;
+        bool operator==(const CompilePlanReference &) const = default;
+    };
+
     struct CompilePlan {
         PSource sourceInfo; //this file will be compiled
-        std::vector<PSource> references;    //this files will be added as reference
+        std::vector<CompilePlanReference> references;    //this files will be added as reference
+        
     };
 
     std::vector<CompilePlan> create_compile_plan(const std::filesystem::path &source_file) const;
@@ -130,7 +144,8 @@ protected:
     std::chrono::system_clock::time_point _import_time;   //time when database was imported
     std::atomic<bool> _modified;     //database has been modified
 
-    void collectReexports(PSource src, std::vector<PSource> &exports) const;
+    void collectReexports(PSource src, std::vector<CompilePlanReference> &exports) const;
+    void add_to_compile_plan(PSource f, std::vector<CompilePlan> &out) const;
 
 
 };

@@ -3,6 +3,7 @@ module;
 
 export module modA;
 import <just_example.hpp>
+import "../includes/just_example2.hpp"
 
 export namespace mymod {
 

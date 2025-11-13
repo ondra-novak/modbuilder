@@ -1,7 +1,8 @@
 #include "log.hpp"
-#include <chrono>
 #include <iostream>
+#include <mutex>
 
+static std::mutex logmx;
 
 Log::Level Log::disabled_level = Log::Level::debug;
 Log::Formatter Log::pre_format = [](Log::Level lev, Log::Buffer &buff) {
@@ -24,6 +25,7 @@ Log::Formatter Log::pre_format = [](Log::Level lev, Log::Buffer &buff) {
 };
 Log::Formatter Log::post_format = {};
 Log::Publisher Log::publisher = [](auto, const Log::Buffer &buff){
+    std::lock_guard _(logmx);
     std::cerr << std::string_view(buff.begin(), buff.end()) << std::endl;
 };
 

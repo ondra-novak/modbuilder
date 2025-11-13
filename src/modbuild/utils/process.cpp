@@ -52,6 +52,8 @@ void Process::kill_child() {
     kill_child(SIGTERM);
 }
 
+static constexpr std::string_view spawn_text("spawn: ");
+
 static int posix_spawn_verbose (pid_t * __pid,
 			const char * __path,
 			const posix_spawn_file_actions_t * __file_actions,
@@ -61,15 +63,15 @@ static int posix_spawn_verbose (pid_t * __pid,
 
     if (Log::is_level_enabled(Log::Level::debug)) {
         auto &buff = Log::get_buffer(Log::Level::debug);
-        Log::pre_format(Log::Level::debug, buff);
+              
+        buff.insert(buff.end(), spawn_text.begin(), spawn_text.end());
         auto c = __argv;
         while (*c) {
             buff.push_back(' ');
             auto strl = std::string_view(*c);
             buff.insert(buff.end(), strl.begin(), strl.end());            
             ++c;
-        }
-        Log::post_format(Log::Level::debug, buff);
+        }      
         Log::send_buffer(Log::Level::debug, buff);
     }
 

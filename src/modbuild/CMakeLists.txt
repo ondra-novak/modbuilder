@@ -14,6 +14,7 @@ target_sources(modbuildlb PRIVATE
         builder.cpp
         discovery.cpp
         abstract_compiler.cpp
+        compile_commands_supp.cpp
         cli.cpp
         utils/log.cpp
         utils/process.cpp

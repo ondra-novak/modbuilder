@@ -2,14 +2,44 @@
 #include "factory.hpp"
 #include "module_type.hpp"
 #include <filesystem>
+
+#include <regex>
 #include <stdexcept>
-#include <utils/product_name.hpp>
 #include <utils/arguments.hpp>
 #include <utils/process.hpp>
 #include <utils/temp_file.hpp>
 #include <memory>
 
+CompilerClang::CompilerClang(Config config) :_config((std::move(config))) {
 
+    _module_cache = _config.working_directory / "pcm";
+    _object_cache = _config.working_directory / "obj";
+    std::filesystem::create_directories(_module_cache);
+    std::filesystem::create_directories(_object_cache);
+
+    ArgumentString verflg(version_flag);
+    auto p = Process::spawn(_config.program_path, _config.working_directory, std::span<const ArgumentString>(&verflg,1), false);
+
+    std::string banner((std::istreambuf_iterator<char>(*p.stdout_stream)),
+                     std::istreambuf_iterator<char>());
+    if (p.waitpid_status() != 0) {
+        throw std::runtime_error("CLANG: unable to get version of compiler: " + _config.program_path.string());
+    }
+
+    // Extract version from banner (e.g., "clang version 14.0.6")
+    std::regex version_regex(R"((\d+\.\d+(?:\.\d+)?))");
+    std::smatch match;
+    if (std::regex_search(banner, match, version_regex)) {
+        _version = match[1].str();
+    } else {
+        throw std::runtime_error("CLANG: unable to parse version from: " + banner);
+    }
+
+    if (_version < Version("18.0")) {
+        throw std::runtime_error("CLANG: version 18.0 or higher is required. Found: " + _version.to_string());
+    }
+
+}
 
 int CompilerClang::link(std::span<const std::filesystem::path> objects) const {
     std::vector<ArgumentString> args = _config.link_options;
@@ -36,95 +66,120 @@ std::string CompilerClang::preproces(const OriginEnv &env,const std::filesystem:
     return out;
 }
 
-std::unique_ptr<AbstractCompiler> CompilerClang::create(std::span<const ArgumentString> arguments,
-        std::filesystem::path workdir
-    ) {
-    return std::make_unique<CompilerClang>(parse_commandline(arguments,workdir));
-}
-
-int CompilerClang::compile(const OriginEnv &env, const std::filesystem::path &source_ref, 
-        ModuleType type,
-        std::span<const ModuleMapping> modules,
+std::vector<ArgumentString> CompilerClang::build_arguments(bool precompile_stage,  const OriginEnv &env,
+        const SourceDef &source,
+        std::span<const SourceDef> modules,
         CompileResult &result) const {
-    
-    auto args = prepare_args(env);
+
+    std::vector<ArgumentString> args;
+    if (!precompile_stage && (source.type == ModuleType::system_header || source.type == ModuleType::user_header )) {
+        return args;
+    }
+    if (precompile_stage && (source.type != ModuleType::implementation && source.type != ModuleType::partition )) {
+        return args;
+    }
+    args = prepare_args(env);                                            
     args.insert(args.begin(), _config.compile_options.begin(), _config.compile_options.end());
-    auto arglen = args.size();
+
+    args.emplace_back(fprebuild_module_path);
+    args.back().append(path_arg(_module_cache));
 
     for (const auto &m: modules) {
+        if (m.type != ModuleType::system_header 
+            && m.type != ModuleType::user_header
+            && m.path.parent_path() == _module_cache) {
+                break;       //skip modules in cache, not need specify
+            }
         ArgumentString cmd (fmodule_file);
-        cmd.append(string_arg(m.logical_name));
+        cmd.append(string_arg(m.name));
         cmd.append(inline_arg("="));
-        cmd.append(path_arg(m.interface));
+        cmd.append(path_arg(m.path));
         args.push_back(std::move(cmd));        
     }
 
-    switch (type) {
+    switch (source.type) {
 
         case ModuleType::user_header: {
-            result.interface = get_bmi_path(type, source_ref);
-            ensure_path_exists(result.interface);
+            result.interface = get_hdr_bmi_path(source);
             args.emplace_back(fmodule_header_user);
             args.emplace_back(xcpp_header);
-            args.emplace_back(path_arg(source_ref));
+            args.emplace_back(path_arg(source.path));
             args.emplace_back(output_flag);
             args.emplace_back(path_arg(result.interface));
-            return invoke(_config, env.working_dir, args);
+            return args;
         }
         case ModuleType::system_header: {
-            result.interface = get_bmi_path(type, source_ref);
+            result.interface = get_hdr_bmi_path(source);
             ensure_path_exists(result.interface);
             args.emplace_back(fmodule_header_system);        
             args.emplace_back(xcpp_system_header);
-            args.emplace_back(path_arg(source_ref));
+            args.emplace_back(path_arg(source.path));
             args.emplace_back(output_flag);
             args.emplace_back(path_arg(result.interface));
-            return invoke(_config, env.working_dir, args);
+            return args;
         }
         case ModuleType::partition:
-        case ModuleType::interface: {
-            result.interface = get_bmi_path(type, source_ref);
+        case ModuleType::interface: if (precompile_stage) {
+            result.interface = get_bmi_path(source);
             ensure_path_exists(result.interface);
             args.emplace_back(xcpp_module);
             args.emplace_back(precompile_flag);
-            args.emplace_back(path_arg(source_ref));
+            args.emplace_back(path_arg(source.path));
             args.emplace_back(output_flag);
             args.emplace_back(path_arg(result.interface));
-            int r =  invoke(_config, env.working_dir, args);
-            if (r) return r;
-            args.resize(arglen);
-            break;
+            return args;
         }
         
         default: break;    
     }
 
     {
-        result.object = get_obj_path(type, source_ref);
+        result.object = get_obj_path(source);
         ensure_path_exists(result.object);
         args.emplace_back(compile_flag);
-        args.emplace_back(path_arg(source_ref));
+        args.emplace_back(path_arg(source.path));
         args.emplace_back(output_flag);
         args.emplace_back(path_arg(result.object));
-        return  invoke(_config, env.working_dir, args);
+        return args;
     }
+
 
 }
 
-bool CompilerClang::generate_compile_command(const OriginEnv &env,
-                                        const std::filesystem::path &source, 
-                                        ModuleType type,
-                                        std::span<const ModuleMapping> modules,
-                                        std::vector<ArgumentString> &result) const {
-    if (type == ModuleType::system_header || type == ModuleType::user_header) {
-        return false;
+
+int CompilerClang::compile(const OriginEnv &env, 
+        const SourceDef &source,
+        std::span<const SourceDef> modules,
+        CompileResult &result) const {
+    
+    {
+        auto args = build_arguments(true, env, source, modules, result);
+        if (!args.empty()) {
+            int r = invoke(_config, env.working_dir, args);
+            if (r) return r;
+        }
     }
-    result = prepare_args(env);
-    result.insert(result.begin(), _config.compile_options.begin(), _config.compile_options.end());
-    result.emplace_back(compile_flag);
-    result.emplace_back(path_arg(source));
-    result.emplace_back(output_flag);
-    result.emplace_back(path_arg(get_obj_path(type, source)));
+    {
+        auto args = build_arguments(false, env, source, modules, result);
+        if (!args.empty()) {
+            int r = invoke(_config, env.working_dir, args);
+            if (r) return r;
+        }
+    }
+    return 0;
+    
+}
+
+bool CompilerClang::generate_compile_command(
+        const OriginEnv &env,
+        const SourceDef &src,
+        std::span<const SourceDef> modules,
+        std::vector<ArgumentString> &result) const {
+
+    CompileResult dummy;
+    result = build_arguments(false, env, src, modules, dummy);
+    if (result.empty()) return false;
+    result.insert(result.begin(), path_arg(_config.program_path));
     return true;
 
 }

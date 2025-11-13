@@ -1,4 +1,5 @@
 #include "module_database.hpp"
+#include "json/value.h"
 #include <atomic>
 #include "module_resolver.hpp"
 #include "module_type.hpp"
@@ -13,6 +14,13 @@ json::value ModuleDatabase::export_db() const {
                     return json::value{
                         {"type", static_cast<int>(ref.type)},
                         {"name",ref.name},
+                    };
+    };
+    auto refjson_a = [](const ReferenceAndAlias &ref) {
+                    return json::value{
+                        {"type", static_cast<int>(ref.type)},
+                        {"name",ref.name},
+                        {"alias",ref.alias.empty()?json::value():json::value(ref.alias)},
                     };
     };
     std::unordered_map<POriginEnv, int> orgmap;
@@ -30,7 +38,7 @@ json::value ModuleDatabase::export_db() const {
             {"bmi_path",src->bmi_path.u8string()},
             {"name",src->name},
             {"type",static_cast<int>(src->type)},
-            {"references",json::value(src->references.begin(), src->references.end(),refjson)},
+            {"references",json::value(src->references.begin(), src->references.end(),refjson_a)},
             {"exported", json::value(src->exported.begin(), src->exported.end(), refjson)},
             {"origin", orgid}
         };
@@ -90,6 +98,13 @@ void ModuleDatabase::import_db(json::value db) {
                 };
     };
 
+    auto json2ref_a =  [&](const json::value &val) {
+                return ReferenceAndAlias{{
+                    static_cast<ModuleType>(val["type"].as<int>()),
+                    val["name"].as<std::string>()
+                }, val["alias"].as<std::string>()
+                };
+    };
     
 
     for (auto item: data) {
@@ -102,7 +117,7 @@ void ModuleDatabase::import_db(json::value db) {
         std::size_t orgid = data["origin"].as<std::size_t>();
         if (orgid < origmap.size()) src.origin = origmap[orgid];
         auto ref = data["references"];
-        std::transform(ref.begin(), ref.end(), std::back_inserter(src.references), json2ref);
+        std::transform(ref.begin(), ref.end(), std::back_inserter(src.references), json2ref_a);
         auto expr = data["exported"];
         std::transform(expr.begin(), expr.end(), std::back_inserter(src.exported), json2ref);
         put(std::move(src));
@@ -294,16 +309,16 @@ ModuleDatabase::Source ModuleDatabase::from_scanner(const std::filesystem::path 
     out.name = nfo.name;
     out.type = nfo.type;
     for (const auto &r: nfo.required) {
-        out.references.push_back(Reference{reftype(r), r});
+        out.references.push_back(ReferenceAndAlias{{reftype(r), r},{}});
     }
     for (const auto &r: nfo.exported) {
-        out.exported.push_back(Reference{reftype(r), r});
+        out.exported.push_back(ReferenceAndAlias{{reftype(r), r},{}});
     }
     for (const auto &r: nfo.system_headers) {
-        out.references.push_back(Reference{ModuleType::system_header, r});
+        out.references.push_back(ReferenceAndAlias{{ModuleType::system_header, r},r});
     }
     for (const auto &r: nfo.user_headers) {
-        out.references.push_back(Reference{ModuleType::user_header, source_file.parent_path()/r});
+        out.references.push_back(ReferenceAndAlias{{ModuleType::user_header, (source_file.parent_path()/r).lexically_normal()},r});
     }
     out.source_file = source_file;
     return out;
@@ -428,6 +443,22 @@ ModuleDatabase::Unsatisfied ModuleDatabase::rescan_directories(
 }
 
 
+void ModuleDatabase::add_to_compile_plan(PSource f, std::vector<CompilePlan> &out) const {
+        CompilePlan c;
+        c.sourceInfo = f;
+        for (auto &r: c.sourceInfo->references) {
+            auto g= find(r);
+            if (g) {
+                c.references.push_back({
+                    r.alias.empty()?g->name:r.alias,
+                    g
+                });
+                collectReexports(g, c.references);
+            }
+        }
+        out.push_back(std::move(c));
+
+}
 
 std::vector<ModuleDatabase::CompilePlan> ModuleDatabase::create_compile_plan(const std::filesystem::path &source_file) const {    
 
@@ -463,51 +494,27 @@ std::vector<ModuleDatabase::CompilePlan> ModuleDatabase::create_compile_plan(con
     }
     
     //all files collected, let's build the plan
-
-    for (auto &f: all_files) {
-        CompilePlan c;
-        c.sourceInfo = f;
-        for (auto &r: c.sourceInfo->references) {
-            auto g= find(r);
-            if (g) {
-                c.references.push_back(g);
-                collectReexports(g, c.references);
-            }
-        }
-        out.push_back(std::move(c));
-    }
-
+    for (auto &f: all_files) add_to_compile_plan(f, out);
     return out;
 }
 
 std::vector<ModuleDatabase::CompilePlan> ModuleDatabase::create_recompile_plan() const
 {
     std::vector<CompilePlan> out;
-    for (auto &[_,f]: _fileIndex) {
-        CompilePlan c;
-        c.sourceInfo = f;
-        for (auto &r: c.sourceInfo->references) {
-            auto g= find(r);
-            if (g) {
-                c.references.push_back(g);
-                collectReexports(g, c.references);
-            }
-        }
-        out.push_back(std::move(c));
-    }
+    for (auto &[_,f]: _fileIndex)  add_to_compile_plan(f, out);
     return out;
 
 }
 
 void ModuleDatabase::collectReexports(PSource src,
-                                      std::vector<PSource> &exports) const {
+                                      std::vector<CompilePlanReference> &exports) const {
     for (auto &r: src->exported) {
         auto f = find(r);
         if (f) {
-            exports.push_back(f);            
-            auto iter = std::find(exports.begin(), exports.end(), f);
+            CompilePlanReference newref {f->name, f};
+            auto iter  = std::find(exports.begin(), exports.end(), newref);
             if (iter == exports.end()) {
-                exports.push_back(f);
+                exports.push_back(std::move(newref));
                 collectReexports(f, exports);
             }
         }

@@ -1,4 +1,5 @@
 #include "arguments.hpp"
+#include <exception>
 #include <filesystem>
 #include <string>
 #include <vector>
@@ -38,14 +39,17 @@ inline std::vector<std::filesystem::path> get_path_entries()
 
 // ---------------------------------------------------------------
 // Najde první existující soubor s daným jménem v PATH
-inline std::optional<std::filesystem::path> find_in_path(const ArgumentString & filename)
+inline std::filesystem::path find_in_path(const std::filesystem::path & filename)
 {
-    for (const auto& dir : get_path_entries()) {
-        std::filesystem::path candidate = dir / filename;
-        if (std::filesystem::exists(candidate) &&
-            std::filesystem::is_regular_file(candidate)) {
-            return candidate;
+    if (filename.filename() == filename) {
+
+        for (const auto& dir : get_path_entries()) {
+            std::filesystem::path candidate = (dir / filename).lexically_normal();
+            if (std::filesystem::exists(candidate) &&
+                std::filesystem::is_regular_file(candidate)) {
+                return candidate;
+            }
         }
     }
-    return std::nullopt;
+    return (std::filesystem::current_path()/filename).lexically_normal();
 }

@@ -1,5 +1,5 @@
 #include "../src/modbuild/scanner.hpp"
-#include "../src/modbuild/compilers/clang/compiler_clang.hpp"
+#include "../src/modbuild/compilers/clang/factory.hpp"
 #include <filesystem>
 #include <iostream>
 
@@ -34,11 +34,9 @@ void print_info(SourceScanner::Info nfo) {
 
 int main() {
     auto path = std::filesystem::path("module_example/modA/modA_code.cpp");
-    std::vector<ArgumentString> args = {
-        inline_arg("clang++"),
-        inline_arg("-Imodule_example/includes"),
-    };
-    auto compiler = CompilerClang::create(args, std::filesystem::current_path());
+    auto compiler = create_compiler_clang({
+        find_in_path("clang++"), {inline_arg("-Imodule_example/include")}, {}, ".build"});
+    
 
     SourceScanner scanner(*compiler);
     std::cout << path << std::endl;

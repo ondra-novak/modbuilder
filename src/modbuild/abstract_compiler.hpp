@@ -11,14 +11,21 @@
 class AbstractCompiler {
 public:
 
+    struct SourceDef {
+        ModuleType type;    //type of compiled module
+        std::string name;   //name of compiled module 
+        std::filesystem::path path;  //path to source file / interface file
+    };
+
     struct CompileResult {
         std::filesystem::path interface;
         std::filesystem::path object;
     };
 
     struct ModuleMapping {
-        std::string logical_name;
-        std::filesystem::path interface;
+        ModuleType type;    //type of module (we need this to know whether it is header or standard module)
+        std::string logical_name;   //logical module name
+        std::filesystem::path interface;    //path to interface (bmi, pcm, gcm, etc)
     };
 
     struct Config {
@@ -57,9 +64,8 @@ public:
      */
     virtual int compile(
         const OriginEnv &env,
-        const std::filesystem::path &source, 
-        ModuleType type,
-        std::span<const ModuleMapping> modules,
+        const SourceDef &source,
+        std::span<const SourceDef> modules,
         CompileResult &result) const = 0;
     
 
@@ -73,11 +79,11 @@ public:
      * @retval true generated
      * @retval false this file cannot be added to compiled_commands
      */
-    virtual bool generate_compile_command(const OriginEnv &env,
-                                          const std::filesystem::path &source, 
-                                          ModuleType type,
-                                          std::span<const ModuleMapping> modules,
-                                          std::vector<ArgumentString> &result) const = 0;
+    virtual bool generate_compile_command(
+        const OriginEnv &env,
+        const SourceDef &src,
+        std::span<const SourceDef> modules,
+        std::vector<ArgumentString> &result) const = 0;
 
     virtual int link(std::span<const std::filesystem::path> objects) const = 0;
 
@@ -97,37 +103,6 @@ public:
     static constexpr auto compile_flag = ArgumentConstant("--compile:");
     static constexpr auto link_flag = ArgumentConstant("--link:");
 
-    enum class ParamKind {
-        common, compile, link
-    };
-
-    static Config parse_commandline(const std::span<const ArgumentString> &args, std::filesystem::path working_dir) {
-        Config out;
-        ParamKind st = ParamKind::common;
-        if (args.empty()) return out;
-
-        auto found = find_in_path(args[0]);
-        if (found.has_value()) out.program_path = std::move(found.value());
-        else out.program_path = args[0];
-
-        out.working_directory = std::move(working_dir);
-
-        auto params = args.subspan(1);
-
-        for (auto &a: params) {
-            if (a == compile_flag) st = ParamKind::compile;
-            else if (a == link_flag) st = ParamKind::link;
-            else { 
-                switch (st) {
-                    case ParamKind::common: out.compile_options.push_back(a);
-                                        out.link_options.push_back(a);break;
-                    case ParamKind::compile: out.compile_options.push_back(a);break;
-                    case ParamKind::link: out.link_options.push_back(a);break;
-                }
-            }            
-        }
-        return out;
-    }
 
     static inline void ensure_path_exists(const std::filesystem::path &file_path) {
         std::filesystem::create_directories(file_path.parent_path());
@@ -138,4 +113,6 @@ public:
         std::span<const ArgumentString> arguments);
 
     static std::vector<ArgumentString> prepare_args(const OriginEnv &env);
+
+    static std::filesystem::path intermediate_file( const SourceDef &src, std::string_view ext);
 };

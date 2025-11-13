@@ -1,7 +1,7 @@
 #pragma once
 #include "../../abstract_compiler.hpp"
 #include "../../utils/arguments.hpp"
-#include "../../utils/product_name.hpp"
+#include "../../utils/version.hpp"
 #include <filesystem>
 
 class CompilerClang : public AbstractCompiler {
@@ -13,9 +13,8 @@ public:
 
     virtual int compile(
         const OriginEnv &env,
-        const std::filesystem::path &source, 
-        ModuleType type,
-        std::span<const ModuleMapping> modules,
+        const SourceDef &src,
+        std::span<const SourceDef> modules,
         CompileResult &result) const override;
     
     virtual int link(std::span<const std::filesystem::path> objects) const override;
@@ -24,19 +23,15 @@ public:
                 const OriginEnv &env,
                 const std::filesystem::path &file) const override;
 
-    CompilerClang(Config config):_config(config) {}
+    CompilerClang(Config config);
 
 
-    static std::unique_ptr<AbstractCompiler> create(
-        std::span<const ArgumentString> arguments,
-        std::filesystem::path workdir
-    );
 
-    virtual bool generate_compile_command(const OriginEnv &env,
-                                        const std::filesystem::path &source, 
-                                        ModuleType type,
-                                        std::span<const ModuleMapping> modules,
-                                        std::vector<ArgumentString> &result) const override;
+    virtual bool generate_compile_command(
+        const OriginEnv &env,
+        const SourceDef &src,
+        std::span<const SourceDef> modules,
+        std::vector<ArgumentString> &result) const override;
 
 
     virtual void initialize_module_map(std::span<const ModuleMapping> ) override {}
@@ -53,17 +48,34 @@ public:
     static constexpr auto precompile_flag = ArgumentConstant("--precompile");
     static constexpr auto compile_flag = ArgumentConstant("-c");
     static constexpr auto fmodule_file = ArgumentConstant("-fmodule-file=");
+    static constexpr auto version_flag = ArgumentConstant("--version");
+    static constexpr auto fprebuild_module_path = ArgumentConstant("-fprebuilt-module-path=");
 
 protected:
     Config _config;
+    std::filesystem::path _module_cache;
+    std::filesystem::path _object_cache;
+    Version _version;
     
   
 
-    std::filesystem::path get_bmi_path(ModuleType type, std::filesystem::path source) const {
-        return _config.working_directory/"bmi"/product_name(type, source, "pcm");
+    std::filesystem::path get_bmi_path(const SourceDef &src) const {
+        auto n = src.name;
+        for (auto &c: n) if (c == ':') c = '_';
+        std::filesystem::path fname(n);
+        fname.replace_extension(".pcm");
+        return _config.working_directory/"pcm"/fname;
     };
-    std::filesystem::path get_obj_path(ModuleType type, const std::filesystem::path source) const {
-        return _config.working_directory/"obj"/product_name(type, source, "o");
+
+    std::filesystem::path get_obj_path(const SourceDef &src) const {
+        return _config.working_directory/"obj"/intermediate_file(src,".o");
     }
+    std::filesystem::path get_hdr_bmi_path(const SourceDef &src) const {
+        return _config.working_directory/"pcm"/intermediate_file(src,".pcm");
+    }
+    std::vector<ArgumentString> build_arguments(bool precompile_stage,  const OriginEnv &env,
+        const SourceDef &src,
+        std::span<const SourceDef> modules,
+        CompileResult &result) const;
     
 };

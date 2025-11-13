@@ -19,7 +19,9 @@ using ArgumentString = std::u8string;
 template<int N>
 inline ArgumentString inline_arg(const char (&str)[N]) {
     ArgumentString ret;
-    for (char c: str) ret.push_back(c);
+    ret.reserve(N);
+    std::string_view s(str);
+    for (char c: s) ret.push_back(c);
     return ret;
 }
 

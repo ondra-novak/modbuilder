@@ -1,5 +1,24 @@
 #include "builder.hpp"
+#include "abstract_compiler.hpp"
+#include "module_database.hpp"
+#include "origin_env.hpp"
+#include "utils/arguments.hpp"
 #include "utils/log.hpp"
+
+auto run_compile(auto fn, const ModuleDatabase::CompilePlan &item, const OriginEnv &def_origin) {        
+    const OriginEnv &env =item.sourceInfo->origin?*item.sourceInfo->origin :def_origin;
+    std::vector<AbstractCompiler::SourceDef> modmap;
+    modmap.reserve(item.references.size());
+    for (auto &x: item.references) {
+        modmap.push_back({
+            x.source->type,
+            x.name,
+            x.source->bmi_path
+        });
+    }
+    return fn(env, modmap);
+}
+
 
 Builder::Builder(std::size_t threads, AbstractCompiler &compiler)
 :_compiler(compiler) 
@@ -65,7 +84,7 @@ struct BuildState {
             
             bool can_build = false;
             for(const auto &ref: me->plan[i].references) {
-                TaskState &refst = me->states[ref];
+                TaskState &refst = me->states[ref.source];
                 if (refst != TaskState::done) {
                     can_build = false;
                     break;
@@ -90,13 +109,20 @@ struct BuildState {
     static void run_build(std::shared_ptr<BuildState> me, std::size_t index) {
         std::unique_lock lk(me->mx);
         if (me->stopped) return;
-        const auto &item = me->plan[index];
-        OriginEnv &env =item.sourceInfo->origin?*item.sourceInfo->origin :me->def_origin;
-        std::vector<AbstractCompiler::ModuleMapping> modmap;
+
+        auto &item = me->plan[index];
         AbstractCompiler::CompileResult compile_res;
-        lk.unlock();
-        int r = me->cmp.compile(env,item.sourceInfo->source_file, item.sourceInfo->type, modmap, compile_res);
-        lk.lock();
+        int r = run_compile([&](const OriginEnv &env, std::span<const AbstractCompiler::SourceDef> modmap){
+            lk.unlock();
+                int r = me->cmp.compile(env, {
+                    item.sourceInfo->type,
+                    item.sourceInfo->name,
+                    item.sourceInfo->source_file}, modmap, compile_res);
+            lk.lock();
+            return r;
+
+        }, item, me->def_origin);
+        
         ++me->cnt_compiled;
         auto percent = (me->cnt_compiled+me->cnt_to_compile/2)*100/me->cnt_to_compile;
         if (!r) Log::verbose("{}% Compiled: {}", percent, item.sourceInfo->source_file.string());
@@ -127,4 +153,23 @@ std::future<bool> Builder::build(std::vector<ModuleDatabase::CompilePlan> plan, 
     BuildState::spawn_tasks(std::move(state));
     return ret;
 }
+
+void Builder::generate_compile_commands(CompileCommandsTable &cctable, std::vector<ModuleDatabase::CompilePlan> plan) {
+    std::vector<ArgumentString> args;
+    OriginEnv default_origin = OriginEnv::default_env();
+    for (auto &c: plan) {
+        run_compile([&](const OriginEnv &env, const auto &modmap){
+            bool b;
+            args.clear();
+            b =  _compiler.generate_compile_command(env, {
+                c.sourceInfo->type, c.sourceInfo->name, c.sourceInfo->source_file
+            }, modmap, args);
+            if (b) {
+               cctable.update(cctable.record(env.working_dir, c.sourceInfo->source_file,args));        
+            }
+
+        }, c, default_origin);
+    }
+}
+
 
