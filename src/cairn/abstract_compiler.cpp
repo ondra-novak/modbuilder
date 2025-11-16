@@ -1,10 +1,12 @@
 #include "abstract_compiler.hpp"
 #include "module_type.hpp"
 #include "utils/process.hpp"
+#include "utils/log.hpp"
 #include <charconv>
 #include <filesystem>
 #include <format>
 #include <string_view>
+#include <json/value.h>
 
 int AbstractCompiler::invoke(const Config &cfg, 
     const std::filesystem::path &workdir, 
@@ -38,4 +40,16 @@ std::vector<ArgumentString> AbstractCompiler::prepare_args(const OriginEnv &env)
         out.push_back(a);
     }
     return out;        
+}
+
+void AbstractCompiler::dump_failed_cmdline(const Config &cfg, const std::filesystem::path &workdir, std::span<const ArgumentString> cmdline) {
+    Log::verbose("Failed command: {}", [&]{
+        std::ostringstream s;
+        s << cfg.program_path.string();
+        for (const auto &x: cmdline) {
+            s << " " << json::value(x).as<std::string_view>();
+        };
+        return std::move(s).str();
+    });
+    Log::verbose("Working directory: {}", workdir.string());
 }

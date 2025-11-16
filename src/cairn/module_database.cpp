@@ -536,6 +536,12 @@ BuildPlan<ModuleDatabase::CompileAction> ModuleDatabase::create_build_plan(
     auto getenv = [&](const PSource &src) -> const OriginEnv & {
         return src->origin?*src->origin:env;
     };
+    auto ncompiled = [&](const PSource &src) ->std::string {
+        return "Compiled: " + src->source_file.string();
+    };
+    auto nlinked = [&](const std::filesystem::path &n) ->std::string {
+        return "Linked: " + n.string();
+    };
 
     if (build_library) throw std::runtime_error("library mode is not supported yet!");
     BuildPlan<CompileAction> plan;
@@ -568,7 +574,7 @@ BuildPlan<ModuleDatabase::CompileAction> ModuleDatabase::create_build_plan(
                     lnk.first.push_back(s);
                     //test for need recompile, if need, create targets
                     if (s->state.recompile || s->object_path.empty() || !std::filesystem::exists(s->object_path)) {
-                        auto ref = plan.create_target({*this, compiler, getenv(s), s});
+                        auto ref = plan.create_target({*this, compiler, getenv(s), s},ncompiled(s));
                         target_ids.emplace(s, ref);
                         //add to process this target
                         to_process.push(s);
@@ -576,7 +582,7 @@ BuildPlan<ModuleDatabase::CompileAction> ModuleDatabase::create_build_plan(
                 }
             }
             //add link step target
-            auto ref = plan.create_target({*this, compiler, getenv(sinfo), std::move(lnk)});
+            auto ref = plan.create_target({*this, compiler, getenv(sinfo), std::move(lnk)},nlinked(t));
             //add dependencies for this target
             for (const PSource &s: tmp) {
                 auto iter = target_ids.find(s);
@@ -591,7 +597,7 @@ BuildPlan<ModuleDatabase::CompileAction> ModuleDatabase::create_build_plan(
             if (f->state.recompile) {
                 auto iter = target_ids.find(f);
                 if (iter == target_ids.end())  {
-                    auto t = plan.create_target({*this, compiler, getenv(f), f})    ;
+                    auto t = plan.create_target({*this, compiler, getenv(f), f},ncompiled(f))    ;
                     target_ids.emplace(f, t);
                     to_process.push(f);
                 }            
@@ -622,7 +628,7 @@ BuildPlan<ModuleDatabase::CompileAction> ModuleDatabase::create_build_plan(
                             || s->bmi_path.empty() 
                             || !std::filesystem::exists(s->bmi_path))) {
                         //create target
-                        auto ref = plan.create_target({*this, compiler, getenv(s), s});                    
+                        auto ref = plan.create_target({*this, compiler, getenv(s), s},ncompiled(s));                    
                         target_ids.emplace(s,ref);
                         to_process.push(s);
                         //add to dependency

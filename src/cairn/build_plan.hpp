@@ -10,9 +10,9 @@ public:
 
     using TargetID = std::size_t;
     
-    TargetID create_target(Action action) {
+    TargetID create_target(Action action, std::string name) {
         std::size_t out = _items.size();
-        _items.push_back({std::move(action),{}});
+        _items.push_back({std::move(action),{},name});
         return out;
     }
     void add_dependency(TargetID target, TargetID target_depends_on ) {
@@ -81,6 +81,7 @@ public:
     struct Item {
         Action action;       //action to execute
         std::vector<std::size_t> dependencies;   //dependencies required to be done (index)
+        std::string name;
     };
 
     auto begin() const {return _items.begin();}

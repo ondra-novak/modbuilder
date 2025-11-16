@@ -4,6 +4,7 @@
 #include "compile_commands_supp.hpp"
 #include "module_database.hpp"
 #include "utils/thread_pool.hpp"
+#include "utils/log.hpp"
 #include <future>
 #include <mutex>
 #include "build_plan.hpp"
@@ -22,9 +23,12 @@ public:
         bool _is_stopped = false;
         bool _keep_going = false;
         std::mutex _mx;
+        std::size_t _to_compile;
+        std::size_t _compiled = 0;
 
         BuildState(ThreadPool &pool, const BuildPlan<Action> &plan, bool keep_going)
-            :_thrp(pool), _plan(plan), _state(plan.initialize_state()),_keep_going(keep_going) {}
+            :_thrp(pool), _plan(plan), _state(plan.initialize_state())
+            ,_keep_going(keep_going), _to_compile(plan.get_plan().size()) {}
 
         static void start(std::shared_ptr<BuildState> st) {
             std::lock_guard _(st->_mx);
@@ -36,9 +40,11 @@ public:
                 st->_thrp.push([st, &action, id]() noexcept {
                     std::unique_lock lk(st->_mx);
                     if (st->_is_stopped) return;
-                    lk.unlock();
+                    lk.unlock();                    
                     bool ok = action();
                     lk.lock();
+                    ++st->_compiled;
+                    Log::verbose("[{:3}%] {}", (st->_compiled * 100 + st->_to_compile/2)/st->_to_compile, st->_plan.get_plan()[id].name);
                     st->_plan.mark_done(st->_state, id);
                     if (ok || st->_keep_going) next_step(st);
                     else st->finish(false);

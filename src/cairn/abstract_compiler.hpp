@@ -134,4 +134,5 @@ public:
     static std::vector<ArgumentString> prepare_args(const OriginEnv &env);
 
     static std::filesystem::path intermediate_file( const SourceDef &src, std::string_view ext);
+    static void dump_failed_cmdline(const Config &cfg, const std::filesystem::path &workdir, std::span<const ArgumentString> cmdline);
 };

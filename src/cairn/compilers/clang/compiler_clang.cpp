@@ -1,6 +1,7 @@
 #include "compiler_clang.hpp"
 #include "factory.hpp"
 #include "../../utils/log.hpp"
+#include "../../utils/temp_file.hpp"
 #include "module_type.hpp"
 #include <algorithm>
 #include <filesystem>
@@ -57,13 +58,26 @@ CompilerClang::CompilerClang(Config config) :_config((std::move(config))) {
 }
 
 int CompilerClang::link(std::span<const std::filesystem::path> objects, const std::filesystem::path &target) const {
-    std::vector<ArgumentString> args = _config.link_options;
-    std::transform(objects.begin(), objects.end(), std::back_inserter(args), [](const auto &p){
-        return path_arg(p);
-    });
-    append_arguments(args, {"-o","{}"}, {path_arg(target)});
-    return invoke(_config, _config.working_directory, args);
 
+    OutputTempFile tmpf;
+    std::ostream &f = tmpf.create();
+    for (const auto &s: objects) {
+         Log::debug("Link object {}", [&]{
+            return s.string();
+         });
+         auto str = s.u8string();
+         f.write(reinterpret_cast<const char *>(str.data()), str.size());
+         f.put('\n');
+    }
+    auto tmppath = tmpf.commit();
+
+    std::vector<ArgumentString> args = _config.link_options;
+    append_arguments(args, {"@{}","-o","{}"}, {path_arg(tmppath), path_arg(target)});
+    int r =  invoke(_config, _config.working_directory, args);
+    if (r) {
+        dump_failed_cmdline(_config, _config.working_directory, args);
+    }
+    return r;
 }
 
 SourceScanner::Info CompilerClang::scan(const OriginEnv &env, const std::filesystem::path &file) const
@@ -94,12 +108,14 @@ std::string CompilerClang::preprocess(const OriginEnv &env,const std::filesystem
     append_arguments(args, {"-xc++", "-E", "{}"}, {path_arg(file)});
 
 
-    Process p = Process::spawn(_config.program_path, _config.working_directory, std::move(args), false);
+    Process p = Process::spawn(_config.program_path, _config.working_directory, args, false);
 
     std::string out((std::istreambuf_iterator<char>(*p.stdout_stream)),
                      std::istreambuf_iterator<char>());
 
-    p.waitpid_status();
+    if (p.waitpid_status()) {
+        dump_failed_cmdline(_config, _config.working_directory, args);
+    }
     return out;
 }
 
@@ -147,7 +163,7 @@ std::vector<ArgumentString> CompilerClang::build_arguments(bool precompile_stage
         case ModuleType::system_header: {
             result.interface = get_hdr_bmi_path(source);
             append_arguments(args,
-                {"-fmodule-header=system", "-xc++-system-header", "--precompile", "{}", "-o", "{}"},
+                {"-Wno-pragma-system-header-outside-header", "-fmodule-header=system", "-xc++-system-header", "--precompile", "{}", "-o", "{}"},
                 {path_arg(source.path), path_arg(result.interface)});
             return args;
         }
@@ -180,14 +196,20 @@ int CompilerClang::compile(const OriginEnv &env,
         auto args = build_arguments(true, env, source, modules, result);
         if (!args.empty()) {
             int r = invoke(_config, env.working_dir, args);
-            if (r) return r;
+            if (r) {
+                dump_failed_cmdline(_config, env.working_dir, args);;
+                return r;   
+            }
         }
     }
     {
         auto args = build_arguments(false, env, source, modules, result);
         if (!args.empty()) {
             int r = invoke(_config, env.working_dir, args);
-            if (r) return r;
+            if (r) {
+                dump_failed_cmdline(_config, env.working_dir, args);;
+                return r;
+            }
         }
     }
     return 0;
