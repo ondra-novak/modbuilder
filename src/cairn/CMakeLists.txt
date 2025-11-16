@@ -4,10 +4,10 @@ add_subdirectory(compilers/gcc)
 
 
 
-add_library(modbuildlb)
-add_executable(modbuild)
+add_library(core OBJECT)
+add_executable(cairn)
 
-target_sources(modbuildlb PRIVATE
+target_sources(core PRIVATE
         module_resolver.cpp
         module_database.cpp
         scanner.cpp
@@ -21,13 +21,13 @@ target_sources(modbuildlb PRIVATE
         utils/temp_file.cpp
 )   
 
-target_link_libraries(modbuildlb PRIVATE
+
+target_sources(cairn PRIVATE main.cpp)
+target_link_libraries(cairn PRIVATE 
        $<TARGET_OBJECTS:compiler_msvc>
        $<TARGET_OBJECTS:compiler_clang>
        $<TARGET_OBJECTS:compiler_gcc>
+       $<TARGET_OBJECTS:core>
 )
-
-target_sources(modbuild PRIVATE main.cpp)
-target_link_libraries(modbuild PRIVATE modbuildlb)
 
 

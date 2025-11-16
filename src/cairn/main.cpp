@@ -123,7 +123,7 @@ int tmain(int argc, ArgumentString::value_type *argv[]) {
 
         bool succ = parse_cmdline(settings, clird);
         if (settings.show_help) {
-            std::cout << helptext << std::endl;
+            std::cout << get_help() << std::endl;
             return 0;
         }
         if (!succ) {

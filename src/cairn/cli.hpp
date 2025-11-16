@@ -32,4 +32,4 @@ struct AppSettings {
 };
 
 bool parse_cmdline(AppSettings &settings, CliReader<ArgumentString::value_type> &cli);
-extern const std::string_view helptext;
+std::string_view get_help();
