@@ -155,7 +155,7 @@ int tmain(int argc, ArgumentString::value_type *argv[]) {
             db.rescan_directories({},*compiler, settings.env_file_json);
         }
         for (const auto &ts: settings.targets) {
-            db.add_file({}, ts.source, *compiler);
+            db.add_file( ts.source, *compiler);
         }
 
         auto plan = db.create_build_plan(*compiler, *default_env, 

@@ -10,6 +10,7 @@
 #include "compile_commands_supp.hpp"
 #include <queue>
 #include <unordered_set>
+#include <ranges>
 
 json::value ModuleDatabase::export_db() const {
     auto refjson = [](const Reference &ref) {
@@ -25,73 +26,49 @@ json::value ModuleDatabase::export_db() const {
                         {"alias",ref.alias.empty()?json::value():json::value(ref.alias)},
                     };
     };
-    std::unordered_map<POriginEnv, int> orgmap;
-    std::vector<POriginEnv> origins;
-    origins.reserve(_originMap.size()+1);
-    json::value data(_fileIndex.begin(), _fileIndex.end(), [&](const auto &kv){
-        const PSource src = kv.second;
-        std::size_t orgid = origins.size();
-        auto oins = orgmap.try_emplace(src->origin, orgid);
-        if (oins.second) origins.push_back(src->origin); else orgid = oins.first->second;
 
-        return json::value {
-            {"source_file",src->source_file.u8string()},
-            {"object_path",src->object_path.u8string()},
-            {"bmi_path",src->bmi_path.u8string()},
-            {"name",src->name},
-            {"type",static_cast<int>(src->type)},
-            {"references",json::value(src->references.begin(), src->references.end(),refjson_a)},
-            {"exported", json::value(src->exported.begin(), src->exported.end(), refjson)},
-            {"origin", orgid}
-        };
-    });
+    auto flt = _originMap | std::ranges::views::filter([](const auto &x){return x.second != nullptr;});    
 
-    return {
-        {"timestamp", _import_time.time_since_epoch().count()},
-        {"data", data},
-        {"origins", json::value(origins.begin(), origins.end(), [](const POriginEnv &org){
-            if (org) return json::value {
+    json::value alldata (flt.begin(), flt.end() ,[&](const auto &itm){
+        const POriginEnv &org = itm.second;
+        if (org) {
+            auto flt = _fileIndex | std::ranges::views::filter([&](const auto &x){return x.second->origin == org;});    
+            return json::value {
                 {"config_file", org->config_file.u8string()},
                 {"work_dir", org->working_dir.u8string()},
                 {"hash", org->settings_hash},
                 {"includes", json::value(org->includes.begin(), org->includes.end(), 
                     [](const std::filesystem::path &p)->json::value_t{return p.u8string();})},
-                {"options", json::value(org->options.begin(), org->options.end())}
-            }; else return json::value(nullptr);
-        })}
+                {"options", json::value(org->options.begin(), org->options.end())},
+                {"files", json::value(flt.begin(), flt.end(), [&](const auto &kv){
+                    const PSource src = kv.second;
+                    if (src->origin != org) return json::value();
+                    return json::value {
+                        {"source_file",src->source_file.u8string()},
+                        {"object_path",src->object_path.u8string()},
+                        {"bmi_path",src->bmi_path.u8string()},
+                        {"name",src->name},
+                        {"type",static_cast<int>(src->type)},
+                        {"references",json::value(src->references.begin(), src->references.end(),refjson_a)},
+                        {"exported", json::value(src->exported.begin(), src->exported.end(), refjson)},
+                    };
+
+                })}
+            };
+        } else {
+            return json::value();
+        }
+    });
+
+
+    return {
+        {"timestamp", _import_time.time_since_epoch().count()},
+        {"data", alldata},
     };
 }
 
 void ModuleDatabase::import_db(json::value db) {
-    bool d =is_dirty();
-    json::value data = db["data"];
-    json::value tm = db["timestamp"];
-    json::value origins = db["origins"];
-    std::vector<POriginEnv> origmap(origins.size());
-    std::transform(origins.begin(),origins.end(), origmap.begin(), [](const json::value_t &v){
-        if (v.type() == json::type::null) return POriginEnv();
-        else {
-            auto inc = v["includes"];
-            auto opts = v["options"];
 
-            std::vector<std::filesystem::path> paths(inc.size());
-            std::vector<std::string> options(opts.size());
-
-            std::transform(inc.begin(), inc.end(), paths.begin(), [](const json::value &v){
-                return std::filesystem::path(v.as<std::u8string>());
-            });
-            std::transform(opts.begin(), opts.end(), options.begin(), [](const json::value &v){
-                return v.as<std::string>();
-            });
-            return std::make_shared<OriginEnv>(OriginEnv{
-            std::filesystem::path(v["config_file"].as<std::u8string_view>()),
-            std::filesystem::path(v["work_dir"].as<std::u8string>()),
-            v["hash"].as<std::size_t>(),
-            std::move(paths),
-            std::move(options)});
-        }
-    });
-    
 
     auto json2ref =  [&](const json::value &val) {
                 return Reference{
@@ -109,21 +86,45 @@ void ModuleDatabase::import_db(json::value db) {
     };
     
 
-    for (auto item: data) {
-        Source src;
-        src.name = item["name"].as<std::string>();
-        src.source_file = item["source_file"].as<std::u8string>();
-        src.object_path = item["object_path"].as<std::u8string>();
-        src.bmi_path = item["bmi_path"].as<std::u8string>();        
-        src.type = static_cast<ModuleType>(item["type"].as<int>());
-        std::size_t orgid = item["origin"].as<std::size_t>();
-        if (orgid < origmap.size()) src.origin = origmap[orgid];
-        auto ref = item["references"];
-        std::transform(ref.begin(), ref.end(), std::back_inserter(src.references), json2ref_a);
-        auto expr = item["exported"];
-        std::transform(expr.begin(), expr.end(), std::back_inserter(src.exported), json2ref);
-        put(std::move(src));
+    bool d =is_dirty();
+    json::value data = db["data"];
+    json::value tm = db["timestamp"];
+    for (auto v: data) {
+        auto inc = v["includes"];
+        auto opts = v["options"];
+
+        std::vector<std::filesystem::path> paths(inc.size());
+        std::vector<std::string> options(opts.size());
+
+        std::transform(inc.begin(), inc.end(), paths.begin(), [](const json::value &v){
+            return std::filesystem::path(v.as<std::u8string>());
+        });
+        std::transform(opts.begin(), opts.end(), options.begin(), [](const json::value &v){
+            return v.as<std::string>();
+        });
+        auto org =  std::make_shared<OriginEnv>(OriginEnv{
+            std::filesystem::path(v["config_file"].as<std::u8string_view>()),
+            std::filesystem::path(v["work_dir"].as<std::u8string>()),
+            v["hash"].as<std::size_t>(),
+            std::move(paths),
+            std::move(options)});
+        auto files = v["files"];
+        for (auto item: files) {
+            Source src;
+            src.name = item["name"].as<std::string>();
+            src.source_file = item["source_file"].as<std::u8string>();
+            src.object_path = item["object_path"].as<std::u8string>();
+            src.bmi_path = item["bmi_path"].as<std::u8string>();        
+            src.type = static_cast<ModuleType>(item["type"].as<int>());
+            src.origin = org;
+            auto ref = item["references"];
+            std::transform(ref.begin(), ref.end(), std::back_inserter(src.references), json2ref_a);
+            auto expr = item["exported"];
+            std::transform(expr.begin(), expr.end(), std::back_inserter(src.exported), json2ref);
+            put(std::move(src));
+        }
     }
+
     _modify_time = std::chrono::system_clock::time_point(
         std::chrono::system_clock::duration(tm.as<std::chrono::system_clock::duration::rep>()));
     _import_time = std::chrono::system_clock::now();                    
@@ -211,9 +212,6 @@ void ModuleDatabase::update_files_state(AbstractCompiler &compiler) {
     std::vector<std::filesystem::path> to_remove;
     auto cmptm = std::chrono::clock_cast<std::filesystem::file_time_type::clock>(_modify_time);
 
-    auto need_rescan = [](ModuleType type) {
-        return type != ModuleType::user_header && type == ModuleType::system_header;
-    };
 
     //locate all modified files    
     for(const auto &[k,f]: _fileIndex) {
@@ -244,7 +242,7 @@ void ModuleDatabase::update_files_state(AbstractCompiler &compiler) {
             //recompile if modified
             f->state.recompile = f->state.recompile || lwt > cmptm;
             //rescan if modified and not header
-            f->state.rescan = f->state.rescan || (f->state.recompile && need_rescan(f->type));    
+            f->state.rescan = f->state.rescan || (f->state.recompile && !is_header_module(f->type));    
         }
     }
     //remove all marked files
@@ -269,7 +267,7 @@ void ModuleDatabase::update_files_state(AbstractCompiler &compiler) {
                 for (const auto &[_, f]: _fileIndex) {
                     if (f->origin == org) {
                         f->state.recompile = true;                        
-                        f->state.rescan = need_rescan(f->type);
+                        f->state.rescan = !is_header_module(f->type);
                     }
                 }
             }
@@ -344,20 +342,18 @@ ModuleDatabase::Source ModuleDatabase::from_scanner(const std::filesystem::path 
     return out;
 }
 
-bool ModuleDatabase::add_file(POriginEnv origin, const std::filesystem::path &source_file, AbstractCompiler &compiler) {
-    auto f = find(source_file);
-    if (f && (f->origin == origin || (f->origin && origin && f->origin->config_file == origin->config_file))) return false;
-    if (f && !origin && f->origin) origin = f->origin;
-    if (origin == nullptr) {
-        auto mm = ModuleResolver::loadMap(source_file.parent_path());
-        auto iter = _originMap.find(mm.env.config_file);
-        if (iter != _originMap.end()) {
-            origin = iter->second;
-        } else {
-            origin = std::make_shared<OriginEnv>(mm.env);
-        }
+bool ModuleDatabase::add_file(const std::filesystem::path &source_file, AbstractCompiler &compiler) {
+    auto f = find(source_file);    
+    if (f) return false;
+    auto mm = ModuleResolver::loadMap(source_file.parent_path());
+    POriginEnv env;
+    auto iter = _originMap.find(mm.env.config_file);
+    if (iter == _originMap.end()) {
+        env = std::make_shared<OriginEnv>(mm.env);
+    } else {
+        env = iter->second;
     }
-    rescan_file_discovery(origin, source_file, compiler);
+    rescan_file_discovery(env, source_file, compiler);
     return true;
 }
 
@@ -433,7 +429,7 @@ ModuleDatabase::Unsatisfied ModuleDatabase::rescan_directories(
     enqueued.insert(to_process.front());
 
     //until everything processed or unsatisfied
-    while (!to_process.empty() && !need.empty()) {
+    while (!to_process.empty() && (unsatisfied.empty() || !need.empty())) {
         auto dir = to_process.front();
         auto scnres = ModuleResolver::loadMap(dir);
         to_process.pop();

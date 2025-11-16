@@ -111,7 +111,7 @@ public:
      * 
      * @note Adds file, if doesn't exist in database or is stored differently
      */
-    bool add_file(POriginEnv origin, const std::filesystem::path &source_file, AbstractCompiler &compiler);
+    bool add_file(const std::filesystem::path &source_file, AbstractCompiler &compiler);
 
     ///Create Source from scanner informations
     static Source from_scanner(const std::filesystem::path &source_file, const SourceScanner::Info &nfo);
@@ -182,5 +182,6 @@ protected:
     ///collects all bmis required to compile source "from"
     template<typename FnRanged>
     void collect_bmi_references(PSource from, FnRanged &&ret) const;
+    
 
 };

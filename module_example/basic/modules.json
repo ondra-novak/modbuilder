@@ -9,6 +9,7 @@
         "": "../modA",
         "mmain":"../partitions"
     },
-    "work_dir":"."
+    "work_dir":".", 
+    "options":["-DTest","-Dwewewe"]
 
 }
