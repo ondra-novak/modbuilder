@@ -7,9 +7,10 @@
     ],
     "prefixes":{
         "": "../modA",
-        "mmain":"../partitions"
+        "mmain":"../partitions",
+        "inner":"inner"
     },
     "work_dir":".", 
-    "options":["-DTest","-Dwewewe"]
+    "options":[]
 
 }

@@ -175,6 +175,8 @@ void ModuleDatabase::erase(std::filesystem::path file) {
     
 }
 
+
+
 std::vector<ModuleDatabase::PSource> ModuleDatabase::find_multi(Reference ref) const {    
     auto iter = _moduleIndex.find(ref);
     if (iter == _moduleIndex.end()) return {};
@@ -393,6 +395,14 @@ ModuleDatabase::Unsatisfied ModuleDatabase::rescan_file_discovery(POriginEnv ori
     if (!unsatisfied.empty()) {
         auto startdir = origin?origin->config_file:source_file.parent_path();
         unsatisfied = rescan_directories(unsatisfied, compiler, startdir);
+    }
+    if (!unsatisfied.empty()) {
+        Log::debug("Some modules still not resolved, performing deep search");
+        for (const auto &[p,o]:  _originMap) {
+            auto startdir = o->config_file;
+            unsatisfied = rescan_directories(unsatisfied, compiler, startdir);
+            if (unsatisfied.empty()) break;
+        }
     }
     return unsatisfied;
 }

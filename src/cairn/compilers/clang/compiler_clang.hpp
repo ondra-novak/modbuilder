@@ -73,8 +73,8 @@ protected:
     std::filesystem::path get_bmi_path(const SourceDef &src) const {
         auto n = src.name;
         for (auto &c: n) if (c == ':') c = '-';
+        n.append(".pcm");
         std::filesystem::path fname(n);
-        fname.replace_extension(".pcm");
         return _config.working_directory/"pcm"/fname;
     };
 

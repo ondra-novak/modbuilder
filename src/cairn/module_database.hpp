@@ -8,8 +8,10 @@
 #include "compile_target.hpp"
 
 #include <chrono>
+#include <functional>
 #include <json/value.h>
 #include <filesystem>
+#include <map>
 #include <unordered_map>
 #include <vector>
 #include <variant>
@@ -176,6 +178,7 @@ protected:
     ///collects all bmis required to compile source "from"
     template<typename FnRanged>
     void collect_bmi_references(PSource from, FnRanged &&ret) const;
-    
+
+
 
 };
