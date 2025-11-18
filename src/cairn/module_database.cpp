@@ -256,7 +256,7 @@ void ModuleDatabase::update_files_state(AbstractCompiler &compiler) {
                 //get new settings
                 *org = mp.env;
                 //find all files and mark them for recompile an rescan                
-                for (const auto &[_, f]: _fileIndex) {
+                for (const auto &[__, f]: _fileIndex) {
                     if (f->origin == org) {
                         f->state.recompile = true;                        
                         f->state.rescan = !is_header_module(f->type);
@@ -557,24 +557,24 @@ BuildPlan<ModuleDatabase::CompileAction> ModuleDatabase::create_build_plan(
             tmp.push_back(sinfo); //include self to dependencies for link step
 
             CompileAction::LinkStep lnk{{},t};
-            for (const PSource &s: tmp) {
+            for (const PSource &ss: tmp) {
                 //filter only sources which generates objects
-                if (generates_object(s->type)) {
-                    lnk.first.push_back(s);
+                if (generates_object(ss->type)) {
+                    lnk.first.push_back(ss);
                     //test for need recompile, if need, create targets
-                    if (s->state.recompile || s->object_path.empty() || !std::filesystem::exists(s->object_path)) {
-                        auto ref = plan.create_target({*this, compiler, getenv(s), s},ncompiled(s));
-                        target_ids.emplace(s, ref);
+                    if (ss->state.recompile || ss->object_path.empty() || !std::filesystem::exists(ss->object_path)) {
+                        auto ref = plan.create_target({*this, compiler, getenv(ss), ss},ncompiled(ss));
+                        target_ids.emplace(ss, ref);
                         //add to process this target
-                        to_process.push(s);
+                        to_process.push(ss);
                     }
                 }
             }
             //add link step target
             auto ref = plan.create_target({*this, compiler, getenv(sinfo), std::move(lnk)},nlinked(t));
             //add dependencies for this target
-            for (const PSource &s: tmp) {
-                auto iter = target_ids.find(s);
+            for (const PSource &ss: tmp) {
+                auto iter = target_ids.find(ss);
                 if (iter != target_ids.end()) plan.add_dependency(ref, iter->second);
             }
         }

@@ -3,6 +3,7 @@
 #include "../../utils/arguments.hpp"
 #include "../../utils/version.hpp"
 #include "factory.hpp"
+#include <array>
 #include <filesystem>
 
 class CompilerClang : public AbstractCompiler {

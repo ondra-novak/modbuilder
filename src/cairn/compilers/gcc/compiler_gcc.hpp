@@ -5,6 +5,7 @@
 #include "../../utils/thread_pool.hpp"
 #include "factory.hpp"
 #include <filesystem>
+#include <array>
 
 class CompilerGcc : public AbstractCompiler {
 public:

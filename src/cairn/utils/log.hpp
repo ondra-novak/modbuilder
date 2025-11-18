@@ -2,6 +2,7 @@
 #include <format>
 #include <vector>
 #include <functional>
+#include <array> 
 
 struct Log {
 
