@@ -22,6 +22,7 @@ public:
     static bool detect_change(const OriginEnv &env, std::filesystem::file_time_type treshold);
 
     static std::string_view modules_json;
+    static std::string_view modules_yaml;
 
 
     static bool match_prefix(std::string_view prefix, std::string_view name);

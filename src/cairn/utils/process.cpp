@@ -6,6 +6,7 @@
 #include <filesystem>
 #include <numeric>
 #include <spawn.h>
+#include <system_error>
 #include <unistd.h>
 #include <fcntl.h>
 #include <sys/wait.h>
@@ -158,7 +159,11 @@ Process Process::spawn(const std::filesystem::path &path,
         std::filesystem::current_path(*x);
     })>(&cd);
     
-    std::filesystem::current_path(workdir);
+    std::error_code ec;
+    std::filesystem::current_path(workdir, ec);
+    if (ec != std::error_code{}) {
+        throw std::system_error(ec, workdir);
+    }
 
     std::string pathstr = path.string();
 
