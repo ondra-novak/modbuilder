@@ -242,10 +242,10 @@ ModuleResolver::Result process_yaml_like(std::istream &file, std::filesystem::pa
                         res.env.options.emplace_back(mainp);
                         break;
                     case YamlParseStage::prefix_value:
-                        if (res.mapping.empty() || res.mapping.back().prefix != cur_key) {
-                            res.mapping.push_back({cur_key,{}});
+                        if (res.env.maps.empty() || res.env.maps.back().prefix != cur_key) {
+                            res.env.maps.push_back({cur_key,{}});
                         }
-                        res.mapping.back().paths.emplace_back((dir/mainp).lexically_normal());
+                        res.env.maps.back().paths.emplace_back((dir/mainp).lexically_normal());
                         break;
                     default:
                         throw ln;
