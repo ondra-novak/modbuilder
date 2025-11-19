@@ -153,9 +153,11 @@ void CompilerGcc::initialize_module_map(std::span<const ModuleMapping> def)
     std::ofstream mapper(_module_mapper, std::ios::out|std::ios::trunc);
     if (!mapper.is_open())throw std::runtime_error("Can't create module mapper file: " + _module_mapper.string());    
 
+    mapper << "$root " << _module_cache.string() << "\n";
+
     auto add_record = [&](const SourceDef &def, const auto & ... labels) {
         (mapper << ... << labels);
-        auto gcm_path = _module_cache/intermediate_file(def,".gcm");
+        auto gcm_path = intermediate_file(def,".gcm");
         mapper << " "<< gcm_path.string() << '\n';
     };
 
