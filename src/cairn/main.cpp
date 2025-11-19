@@ -1,7 +1,6 @@
 #include "abstract_compiler.hpp"
 #include "builder.hpp"
 #include "cli.hpp"
-#include "app.hpp"
 #include "module_database.hpp"
 #include "utils/log.hpp"
 #include "compilers/gcc/factory.hpp"
