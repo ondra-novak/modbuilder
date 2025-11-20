@@ -9,6 +9,7 @@
 #include "utils/hash.hpp"
 #include "utils/log.hpp"
 #include "utils/filesystem.hpp"
+#include "utils/fkyaml.hpp"
 
 
 std::string_view ModuleResolver::modules_json = "modules.json";
@@ -185,6 +186,24 @@ static std::pair<std::string_view, std::string_view> split_on_colon(std::string_
         }
     }
     return {trim(s), std::string_view{}};
+}
+
+ModuleResolver::Result process_yaml(std::filesystem::path yaml_file) {
+    std::ifstream f(yaml_file);
+    if (!f) throw std::runtime_error("Can't open YAML file");
+    fkyaml::node root = fkyaml::node::deserialize(f);
+    auto files = root["files"];
+    auto includes = root["includes"];
+    auto options = root["options"];
+    auto prefixes = root["prefixes"];
+    auto work_dir = root["work_dir"];
+
+
+
+
+
+
+
 }
 
 ModuleResolver::Result process_yaml_like(std::istream &file, std::filesystem::path origin) {
