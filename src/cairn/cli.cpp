@@ -83,6 +83,13 @@ options     array[] : list of other compile options specific for this project
 If modules.json is missing, then all *.cpp files in current directory are scanned for
 modules
 
+Special usage:
+==============
+
+cairn --scan <file.cpp> <compiler> <flags>
+
+run scanner for this file, output result to stdout
+
 )help";
 
 bool parse_cmdline(AppSettings &settings, CliReader<ArgumentString::value_type> &cli) {
@@ -103,7 +110,13 @@ bool parse_cmdline(AppSettings &settings, CliReader<ArgumentString::value_type> 
             settings.targets.push_back({(curdir/target).lexically_normal(),(curdir/path).lexically_normal()});
             continue;
         }
-        if (p.is_long_sw) return false;
+        if (p.is_long_sw) {
+            if (ArgumentStringView(p.long_sw) == ArgumentConstant("scan") ) {
+                settings.scan_file = cli.text();
+                break;
+            }
+            return false;
+        }
 
         switch (p.short_sw) {
             default: return false;

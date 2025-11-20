@@ -139,6 +139,12 @@ CompilerGcc::CompilerGcc(Config config):_config(std::move(config)) {
     
 }
 
+void CompilerGcc::prepare_for_build() {
+    std::filesystem::create_directories(_module_cache);
+    std::filesystem::create_directories(_object_cache);
+}
+
+
 static std::pair<std::string_view, std::string_view> separate_header_ref(std::string_view header_ref) {
     auto np = header_ref.find('@');
     if (np == header_ref.npos) 

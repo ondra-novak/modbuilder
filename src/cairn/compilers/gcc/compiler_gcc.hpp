@@ -14,6 +14,9 @@ public:
         return "gcc";
     }
 
+    virtual void prepare_for_build() override;
+
+
     virtual int compile(
         const OriginEnv &env,
         const SourceDef &src,

@@ -101,9 +101,28 @@ ModuleDatabase load_database(const std::filesystem::path &path) {
 void save_database(const ModuleDatabase &db, const std::filesystem::path &path) {
     auto s = db.export_db().to_json();
     std::ofstream f(path, std::ios::out|std::ios::trunc);
-    f << s << std::endl;
+    f << s << "\n";
 }
 
+
+int run_just_scan(AbstractCompiler &compiler, const std::filesystem::path &file) {
+    auto print_list = [&](const std::vector<SourceScanner::Reference> &list) {
+        
+        for (const auto &x: list) {
+            std::cout << " - type: " << to_string(x.type) << "\n";
+            std::cout << "   name: " << x.name << "\n";
+        }
+    };
+
+    auto info = compiler.scan(OriginEnv::default_env(), file);
+    std::cout << "module_name: " << info.name << "\n";
+    std::cout << "type: " << to_string(info.type) << "\n";
+    std::cout << "exports:\n";
+    print_list(info.exported);
+    std::cout << "imports:\n";
+    print_list(info.required);
+    return 0;
+}
 
 int tmain(int argc, ArgumentString::value_type *argv[]) {
 
@@ -122,23 +141,27 @@ int tmain(int argc, ArgumentString::value_type *argv[]) {
 
         bool succ = parse_cmdline(settings, clird);
         if (settings.show_help) {
-            std::cout << get_help() << std::endl;
+            std::cout << get_help() << "\n";
             return 0;
         }
         if (!succ) {
             clird.put_back();
             std::string tmp;
             for (auto *x = clird.text(); *x; ++x) tmp.push_back(static_cast<char>(*x));
-            std::cerr << "Command line argument error near:" << tmp << std::endl;
-            std::cerr << "Use -h for help" << std::endl;
+            std::cerr << "Command line argument error near:" << tmp << "\n";
+            std::cerr << "Use -h for help" << "\n";
             return 1;
         }
 
         auto compiler =create_compiler(settings);
         if (!compiler) {
             Log::error("Unknown compiler {}. Use -p to specify compiler.",  settings.compiler_path.string());
-            std::cerr << "Use -h for help" << std::endl;
+            std::cerr << "Use -h for help" << "\n";
             return 1;
+        }
+
+        if (!settings.scan_file.empty()) {
+            return run_just_scan(*compiler, settings.scan_file);            
         }
 
         std::string db_name (compiler->get_compiler_name());
@@ -167,6 +190,7 @@ int tmain(int argc, ArgumentString::value_type *argv[]) {
                 
 
         auto threads = settings.threads;
+        compiler->prepare_for_build();
         bool use_build_system = compiler->initialize_build_system({threads, settings.keep_going});
         if (use_build_system) threads = 1;
         std::vector<AbstractCompiler::ModuleMapping> module_map;

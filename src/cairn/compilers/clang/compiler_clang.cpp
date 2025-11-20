@@ -36,12 +36,12 @@ Version CompilerClang::get_clang_version(Config &cfg) {
 
 }
 
+
+
 CompilerClang::CompilerClang(Config config) :_config((std::move(config))) {
 
     _module_cache = _config.working_directory / "pcm";
     _object_cache = _config.working_directory / "obj";
-    std::filesystem::create_directories(_module_cache);
-    std::filesystem::create_directories(_object_cache);
 
     _version  = get_clang_version(_config);
 
@@ -56,6 +56,13 @@ CompilerClang::CompilerClang(Config config) :_config((std::move(config))) {
     }
 
 }
+
+void CompilerClang::prepare_for_build() {
+    std::filesystem::create_directories(_module_cache);
+    std::filesystem::create_directories(_object_cache);
+
+}
+
 
 int CompilerClang::link(std::span<const std::filesystem::path> objects, const std::filesystem::path &target) const {
 

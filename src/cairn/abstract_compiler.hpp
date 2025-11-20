@@ -37,6 +37,8 @@ public:
 
     virtual ~AbstractCompiler() = default;
 
+    ///performs actions to prepare compiler for build (for example creates working directory)
+    virtual void prepare_for_build() = 0;
 
     virtual std::string_view get_compiler_name() const = 0;
 

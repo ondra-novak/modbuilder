@@ -1,5 +1,6 @@
 #pragma once
 
+#include <string_view>
 
 enum class ModuleType {
     ///Interface module
@@ -35,6 +36,19 @@ enum class ModuleType {
     ///Module is precompiled user header
     user_header,
 };
+
+constexpr std::string_view to_string(ModuleType t) {
+    switch (t) {
+        case ModuleType::interface: return "interface";
+        case ModuleType::implementation: return "implementation";
+        case ModuleType::source: return "source";
+        case ModuleType::partition: return "partition";
+        case ModuleType::system_header: return "system_header";
+        case ModuleType::user_header: return "user_header";
+        default: return "unknown";
+    }
+}
+
 
 constexpr bool generates_bmi(ModuleType t) {
     return t == ModuleType::user_header
