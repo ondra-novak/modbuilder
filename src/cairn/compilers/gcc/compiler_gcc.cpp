@@ -100,7 +100,7 @@ std::pair<std::string,std::string> CompilerGcc::preprocess(const OriginEnv &env,
     append_arguments(args, {"-xc++", "-v", "-E", "{}"}, {path_arg(file)});
 
 
-    Process p = Process::spawn(_config.program_path, _config.working_directory, args, Process::output|Process::error);
+    Process p = Process::spawn(_config.program_path, env.working_dir, args, Process::output|Process::error);
 
     std::promise<std::string> errprom;
     _helper.push([&]() noexcept {
@@ -118,7 +118,8 @@ std::pair<std::string,std::string> CompilerGcc::preprocess(const OriginEnv &env,
 
     auto err =errprom.get_future().get();
     if (p.waitpid_status()) {
-        dump_failed_cmdline(_config, _config.working_directory, args);
+        std::cerr << err << std::endl;
+        dump_failed_cmdline(_config, env.working_dir, args);
     }
     return {std::move(out),std::move(err)};
 }

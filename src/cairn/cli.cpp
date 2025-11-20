@@ -112,7 +112,7 @@ bool parse_cmdline(AppSettings &settings, CliReader<ArgumentString::value_type> 
         }
         if (p.is_long_sw) {
             if (ArgumentStringView(p.long_sw) == ArgumentConstant("scan") ) {
-                settings.scan_file = cli.text();
+                settings.scan_file = (curdir/cli.text()).lexically_normal();
                 break;
             }
             return false;

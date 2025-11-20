@@ -48,18 +48,16 @@ CompilerClang::CompilerClang(Config config) :_config((std::move(config))) {
     if (_version < Version("18.0")) {
         throw std::runtime_error("CLANG: version 18.0 or higher is required. Found: " + _version.to_string());
     }
-    
+    }
+
+void CompilerClang::prepare_for_build() {
+    std::filesystem::create_directories(_module_cache);
+    std::filesystem::create_directories(_object_cache);
     if (std::find_if(_config.compile_options.begin(), _config.compile_options.end(), [&](const auto &opt){
         return opt.starts_with(stdcpp);
     }) == _config.compile_options.end()) {
         Log::warning("Missing C++ version (-std=c++xx) in command line options. This can cause misbehaviour during compilation!");
     }
-
-}
-
-void CompilerClang::prepare_for_build() {
-    std::filesystem::create_directories(_module_cache);
-    std::filesystem::create_directories(_object_cache);
 
 }
 
@@ -121,13 +119,13 @@ std::string CompilerClang::preprocess(const OriginEnv &env,const std::filesystem
     append_arguments(args, {"-xc++", "-E", "{}"}, {path_arg(file)});
 
 
-    Process p = Process::spawn(_config.program_path, _config.working_directory, args, Process::output);
+    Process p = Process::spawn(_config.program_path, env.working_dir, args, Process::output);
 
     std::string out((std::istreambuf_iterator<char>(*p.stdout_stream)),
                      std::istreambuf_iterator<char>());
 
     if (p.waitpid_status()) {
-        dump_failed_cmdline(_config, _config.working_directory, args);
+        dump_failed_cmdline(_config, env.working_dir, args);
     }
     return out;
 }

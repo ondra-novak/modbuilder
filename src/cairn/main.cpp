@@ -2,6 +2,7 @@
 #include "builder.hpp"
 #include "cli.hpp"
 #include "module_database.hpp"
+#include "origin_env.hpp"
 #include "utils/log.hpp"
 #include "compilers/gcc/factory.hpp"
 #include "compilers/clang/factory.hpp"
@@ -11,6 +12,7 @@
 #include <filesystem>
 #include <memory>
 #include <fstream>
+#include <system_error>
 
 static constexpr auto gcc_type_1 = ArgumentConstant("gcc");
 static constexpr auto gcc_type_2 = ArgumentConstant("g++");
@@ -106,20 +108,36 @@ void save_database(const ModuleDatabase &db, const std::filesystem::path &path) 
 
 
 int run_just_scan(AbstractCompiler &compiler, const std::filesystem::path &file) {
+
+    std::error_code ec;
+    if (!std::filesystem::is_regular_file(file,ec)) {
+        std::cerr << "File " << file << " cannot be scanned: " << ec.message() << std::endl;
+        return ec.value();
+    }
+
     auto print_list = [&](const std::vector<SourceScanner::Reference> &list) {
         
-        for (const auto &x: list) {
-            std::cout << " - type: " << to_string(x.type) << "\n";
-            std::cout << "   name: " << x.name << "\n";
+        if (list.empty()) {
+            std::cout << " []\n";            
+        } else {
+            std::cout << "\n";
+            for (const auto &x: list) {
+                std::cout << " - type: " << to_string(x.type) << "\n";
+                std::cout << "   name: " << x.name << "\n";
+            }
         }
     };
 
-    auto info = compiler.scan(OriginEnv::default_env(), file);
+    auto dir = file.parent_path();
+    auto org = OriginEnv{dir,dir, 0,{}, {}, {}};
+
+    auto info = compiler.scan(org, file);
+    std::cout << "---\n";
     std::cout << "module_name: " << info.name << "\n";
     std::cout << "type: " << to_string(info.type) << "\n";
-    std::cout << "exports:\n";
+    std::cout << "exports:";
     print_list(info.exported);
-    std::cout << "imports:\n";
+    std::cout << "imports:";
     print_list(info.required);
     return 0;
 }

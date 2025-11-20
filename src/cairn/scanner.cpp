@@ -1,4 +1,5 @@
 #include "scanner.hpp"
+#include "module_type.hpp"
 #include <algorithm>
 
 
@@ -208,6 +209,9 @@ SourceScanner::Info SourceScanner::scan_string_2(const std::string_view text) {
                     nfo.name = s.text;
                     nfo.type = is_paritition(s.text)?ModuleType::partition
                               :has_export?ModuleType::interface:ModuleType::implementation;
+                    if (nfo.type == ModuleType::implementation) {
+                        nfo.required.push_back({ModuleType::interface, nfo.name});
+                    }
                     cont = false;
                     has_export = false;
                 }               

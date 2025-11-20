@@ -322,8 +322,8 @@ void ModuleDatabase:: recompile_all() {
 
 ModuleDatabase::Unsatisfied ModuleDatabase::merge_references(Unsatisfied a1, Unsatisfied a2) {    
     Unsatisfied out;
-    if (a1.empty()) out = std::move(a1);
-    else if (a2.empty()) out = std::move(a2);
+    if (a1.empty()) out = std::move(a2);
+    else if (a2.empty()) out = std::move(a1);
     else {
         out.reserve(a1.size()+a2.size());
         std::set_union(a1.begin(), a1.end(), a2.begin(), a2.end(), std::back_inserter(out));
