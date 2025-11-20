@@ -2,16 +2,18 @@
 
 #include "module_type.hpp"
 #include "scanner.hpp"
+#include "utils/arguments.hpp"
 #include "utils/hash.hpp"
 #include "origin_env.hpp"
 #include "build_plan.hpp"
 #include "compile_target.hpp"
 
+#include <atomic>
 #include <chrono>
 #include <functional>
-#include <json/value.h>
+#include <iterator>
 #include <filesystem>
-#include <map>
+#include <type_traits>
 #include <unordered_map>
 #include <vector>
 #include <variant>
@@ -23,6 +25,9 @@ class CompileCommandsTable;
 class ModuleDatabase {
 public:
 
+    static constexpr int file_magic = 0x0042444D;
+    static constexpr int file_version_nr = 1;
+
     struct Reference {
         ModuleType type;
         std::string name;   //user header contains absolute path
@@ -33,6 +38,13 @@ public:
             std::hash<std::string> hasher;
             return hash_combine(hasher(name), static_cast<std::size_t>(type));
         }
+
+        template<typename Me, typename Arch>
+        static void serialize(Me &me, Arch &arch) {
+            arch(me.type, me.name);
+        }
+
+
     };
 
     struct State {
@@ -43,7 +55,7 @@ public:
 
 
     struct Source {
-        std::filesystem::path source_file ={};
+        std::filesystem::path source_file = {};
         ModuleType type = {};
         std::string name = {};
         POriginEnv origin = {};
@@ -52,6 +64,15 @@ public:
         std::filesystem::path object_path = {};
         std::filesystem::path bmi_path = {};
         State state = {};
+
+        template<typename Me, typename Arch>
+        static void serialize(Me &me, Arch &arch) {
+            arch(
+                me.source_file,me.type,me.name,
+                me.origin,me.references,me.exported,
+                me.object_path,me.bmi_path
+            );
+        }
     };
 
 
@@ -62,12 +83,10 @@ public:
     using OriginMap = std::unordered_map<std::filesystem::path, POriginEnv>;
 
 
-    json::value export_db() const;
-    void import_db(json::value db);
     void clear();
 
     ModuleDatabase() = default;
-    explicit ModuleDatabase(json::value db) {import_db(std::move(db));} 
+
 
 
 
@@ -159,11 +178,42 @@ public:
     void check_for_recompile();
     void recompile_all();
 
+    bool check_database_version(const std::filesystem::path &compiler, std::span<const ArgumentString> arguments);
+
+    void export_database(std::ostream &s) const;
+    void import_database(std::istream &s);
+
+    template<typename Me, typename Arch>
+    static void serialize(Me &me, Arch &arch) {
+        int v = file_magic;
+        arch(v);
+        if (v != file_magic) return;
+        v = file_version_nr;
+        arch(v);
+        if (v != file_version_nr) return;
+
+        arch(me._hash_settings);
+        if constexpr (std::is_const_v<std::remove_reference_t<Me> >) {
+            arch(me._import_time);
+            std::vector<Source *> src;
+            std::transform(me._fileIndex.begin(), me._fileIndex.end(), std::back_inserter(src), [](const auto &itm) -> Source *{
+                return itm.second.get();
+            });
+            arch(src);
+        } else {
+            arch(me._modify_time);
+            std::vector<Source> src;
+            arch(src);
+            for (auto &x: src) me.put(std::move(x));
+        }        
+    }
+
 
 protected:
     FileIndex _fileIndex;
     ModuleIndex _moduleIndex;
     OriginMap _originMap;
+    std::size_t _hash_settings = 0;
     std::chrono::system_clock::time_point _modify_time; //time when database was modified
     std::chrono::system_clock::time_point _import_time = std::chrono::system_clock::now();   //time when database was imported
     mutable std::atomic<bool> _modified;     //database has been modified
@@ -181,6 +231,6 @@ protected:
     void collect_bmi_references(PSource from, FnRanged &&ret) const;
     
     static Unsatisfied merge_references(Unsatisfied a1, Unsatisfied a2);
-    
+  
 
 };

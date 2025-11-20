@@ -4,153 +4,29 @@
 #include "module_resolver.hpp"
 #include "module_type.hpp"
 #include "scanner.hpp"
+#include "utils/arguments.hpp"
+#include "utils/hash.hpp"
 #include "utils/log.hpp"
 #include "utils/filesystem.hpp"
 #include "abstract_compiler.hpp"
 #include "compile_commands_supp.hpp"
+#include "utils/serializer.hpp"
+#include "utils/serialization_rules.hpp" // IWYU pragma: keep.
+#include <ostream>
 #include <queue>
 #include <string_view>
 #include <unordered_set>
 #include <ranges>
 
-json::value export_module_map(const ModuleMap &mp) {
-    return json::value(mp.begin(), mp.end(), [](const auto &item) {
-        return json::key_value_t(
-            item.prefix, json::value(item.paths.begin(), item.paths.end(), [](const std::filesystem::path &p){
-                return json::value(p.u8string());
-            })
-        );
-    });
-}
-
-ModuleMap import_module_map(const json::value &val) {
-    ModuleMap ret;
-    ret.reserve(val.size());
-    for (const auto &v: val) {
-        const std::string_view k = v.key();
-        std::vector<std::filesystem::path> lst;
-        lst.reserve(v.size());
-        for (const auto &w: v) {
-            lst.push_back(std::filesystem::path(w.as<std::u8string_view>()));
-        }
-        ret.push_back(ModuleMapItem{std::string(k), std::move(lst)});
-    }
-    return ret;
-}
 
 
 
-json::value ModuleDatabase::export_db() const {
-    auto refjson = [](const Reference &ref) {
-                    return json::value{
-                        {"type", static_cast<int>(ref.type)},
-                        {"name",ref.name},
-                    };
-    };
 
-    auto flt = _originMap | std::ranges::views::filter([](const auto &x){return x.second != nullptr;});    
-
-    json::value alldata (flt.begin(), flt.end() ,[&](const auto &itm){
-        const POriginEnv &org = itm.second;
-        if (org) {
-            auto flt = _fileIndex | std::ranges::views::filter([&](const auto &x){return x.second->origin == org;});    
-            return json::value {
-                {"config_file", org->config_file.u8string()},
-                {"work_dir", org->working_dir.u8string()},
-                {"hash", org->settings_hash},
-                {"includes", json::value(org->includes.begin(), org->includes.end(), 
-                    [](const std::filesystem::path &p)->json::value_t{return p.u8string();})},
-                {"options", json::value(org->options.begin(), org->options.end())},
-                {"map",export_module_map(org->maps)},
-                {"files", json::value(flt.begin(), flt.end(), [&](const auto &kv){
-                    const PSource src = kv.second;
-                    if (src->origin != org) return json::value();
-                    return json::value {
-                        {"source_file",src->source_file.u8string()},
-                        {"object_path",src->object_path.u8string()},
-                        {"bmi_path",src->bmi_path.u8string()},
-                        {"name",src->name},
-                        {"type",static_cast<int>(src->type)},
-                        {"references",json::value(src->references.begin(), src->references.end(),refjson)},
-                        {"exported", json::value(src->exported.begin(), src->exported.end(), refjson)},
-                    };
-
-                })}
-            };
-        } else {
-            return json::value();
-        }
-    });
-
-
-    return {
-        {"timestamp", _import_time.time_since_epoch().count()},
-        {"data", alldata},
-    };
-}
-
-void ModuleDatabase::import_db(json::value db) {
-
-
-    auto json2ref =  [&](const json::value &val) {
-                return Reference{
-                    static_cast<ModuleType>(val["type"].as<int>()),
-                    val["name"].as<std::string>()
-                };
-    };
-
-    
-
-    bool d =is_dirty();
-    json::value data = db["data"];
-    json::value tm = db["timestamp"];
-    for (auto v: data) {
-        auto inc = v["includes"];
-        auto opts = v["options"];
-
-        std::vector<std::filesystem::path> paths(inc.size());
-        std::vector<std::string> options(opts.size());
-
-        std::transform(inc.begin(), inc.end(), paths.begin(), [](const json::value &v){
-            return std::filesystem::path(v.as<std::u8string>());
-        });
-        std::transform(opts.begin(), opts.end(), options.begin(), [](const json::value &v){
-            return v.as<std::string>();
-        });
-        auto map = import_module_map(v["map"]);
-        auto org =  std::make_shared<OriginEnv>(OriginEnv{
-            std::filesystem::path(v["config_file"].as<std::u8string_view>()),
-            std::filesystem::path(v["work_dir"].as<std::u8string>()),
-            v["hash"].as<std::size_t>(),
-            std::move(paths),
-            std::move(options),
-            std::move(map)});
-        auto files = v["files"];
-        for (auto item: files) {
-            Source src;
-            src.name = item["name"].as<std::string>();
-            src.source_file = item["source_file"].as<std::u8string>();
-            src.object_path = item["object_path"].as<std::u8string>();
-            src.bmi_path = item["bmi_path"].as<std::u8string>();        
-            src.type = static_cast<ModuleType>(item["type"].as<int>());
-            src.origin = org;
-            auto ref = item["references"];
-            std::transform(ref.begin(), ref.end(), std::back_inserter(src.references), json2ref);
-            auto expr = item["exported"];
-            std::transform(expr.begin(), expr.end(), std::back_inserter(src.exported), json2ref);
-            put(std::move(src));
-        }
-    }
-
-    _modify_time = std::chrono::system_clock::time_point(
-        std::chrono::system_clock::duration(tm.as<std::chrono::system_clock::duration::rep>()));
-    _import_time = std::chrono::system_clock::now();                    
-    if (!d) clear_dirty();
-}
 
 void ModuleDatabase::clear() {
     _fileIndex.clear();
     _moduleIndex.clear();
+    _originMap.clear();    
     _modify_time = {};
     _import_time = std::chrono::system_clock::now();
     _modified = false;
@@ -731,4 +607,29 @@ void ModuleDatabase::extract_module_mapping(const BuildPlan<CompileAction> &plan
         }
     }
 
+}
+
+
+void ModuleDatabase::export_database(std::ostream &s) const {
+    serialize_to_stream(s, *this);
+}
+
+bool ModuleDatabase::check_database_version(const std::filesystem::path &compiler, std::span<const ArgumentString> arguments) {
+    std::hash<std::filesystem::path> hsh1;
+    std::hash<ArgumentString> hsh2;
+    auto h = hsh1(compiler);
+    for (const auto &a: arguments) {
+        h = hash_combine(h, hsh2(a));
+    }
+    if (_hash_settings != h) {
+        clear();
+        _hash_settings = h;
+        return false;
+    }
+    return true;
+}
+
+void ModuleDatabase::import_database(std::istream &s) {
+    clear();
+    deserialize_from_stream(s, *this);
 }

@@ -11,7 +11,6 @@ target_sources(core PRIVATE
         module_resolver.cpp
         module_database.cpp
         scanner.cpp
-        builder.cpp
         abstract_compiler.cpp
         compile_commands_supp.cpp
         cli.cpp

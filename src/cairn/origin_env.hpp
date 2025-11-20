@@ -6,6 +6,13 @@
 struct ModuleMapItem {
     std::string prefix;
     std::vector<std::filesystem::path> paths;
+
+    template<typename Me, typename Arch>
+    static void serialize(Me &me, Arch &arch) {
+        arch(me.prefix, me.paths);
+    }
+
+
 };
 using ModuleMap = std::vector<ModuleMapItem>;
 
@@ -24,6 +31,10 @@ struct OriginEnv {
         };
     }
 
+    template<typename Me, typename Arch>
+    static void serialize(Me &me, Arch &arch) {
+        arch(me.config_file,me.working_dir,me.settings_hash,me.includes,me.options,me.maps);
+    }
 
 };
 

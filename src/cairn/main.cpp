@@ -9,11 +9,13 @@
 #include "compilers/clang/factory.hpp"
 #include "compilers/msvc/factory.hpp"
 #include "utils/arguments.hpp"
+#include <exception>
 #include <json/parser.h>
 #include <filesystem>
 #include <memory>
 #include <fstream>
 #include <system_error>
+#include <unordered_set>
 
 static constexpr auto gcc_type_1 = ArgumentConstant("gcc");
 static constexpr auto gcc_type_2 = ArgumentConstant("g++");
@@ -83,28 +85,24 @@ static std::unique_ptr<AbstractCompiler> create_compiler(const AppSettings &sett
     std::filesystem::create_directories(cfg.working_directory);
     return factory(std::move(cfg));
 }
-ModuleDatabase load_database_from_file(std::istream &f) {
-    std::vector<char> data;
-    ModuleDatabase db;
-    std::copy(std::istreambuf_iterator<char>(f),
-              std::istreambuf_iterator<char>(), 
-              std::back_inserter(data));
-    json::value jdata;
-    json::parser_t p;
-    p.parse(data.begin(), data.end(), jdata);
-    return ModuleDatabase{std::move(jdata)};
+
+void  load_database(ModuleDatabase &db, const std::filesystem::path &path) {
+    std::ifstream f(path, std::ios::in|std::ios::binary);
+    if (!!f) {
+        try {
+            db.import_database(f);
+        } catch (std::exception &e) {
+            Log::warning("Database is corrupted. Rebuilding: {}", e.what());
+            db.clear();
+        }
+    }
 }
 
-ModuleDatabase load_database(const std::filesystem::path &path) {
-    std::ifstream f(path);
-    if (!f) return {};
-    else return load_database_from_file(f);
-}
 
-void save_database(const ModuleDatabase &db, const std::filesystem::path &path) {
-    auto s = db.export_db().to_json();
-    std::ofstream f(path, std::ios::out|std::ios::trunc);
-    f << s << "\n";
+void save_database_binary(const ModuleDatabase &db, const std::filesystem::path &path) {
+    std::ofstream f(path, std::ios::out|std::ios::trunc|std::ios::binary);
+    db.export_database(f);
+
 }
 
 
@@ -143,7 +141,7 @@ int run_just_scan(AbstractCompiler &compiler, const std::filesystem::path &file)
     return 0;
 }
 
-static void list_modules(const std::vector<AbstractCompiler::ModuleMapping>  &map) {
+static void list_modules(const ModuleDatabase &db, const std::vector<AbstractCompiler::ModuleMapping>  &map) {
     auto filter = [&](auto fn) -> std::vector<std::string_view> {
         std::vector<std::string_view> out;
         for (const auto &x: map) if (fn(x.type)) out.push_back(x.name);
@@ -170,7 +168,23 @@ static void list_modules(const std::vector<AbstractCompiler::ModuleMapping>  &ma
     std::cout << "user_headers:";
     print_list(user_headers);
 
+    std::unordered_set<POriginEnv> origins;
+    for (const auto &x: map) {
+        auto f = db.find(x.path);
+        origins.insert(f->origin);
+    }
+
+    std::cout << "origins:";
+    if (origins.empty()) std::cout << "[]";
+    std::cout << "\n";
+    for (const auto &o: origins) {
+        std::cout << " - " << o->config_file << std::endl;
+    }
+
+
 }
+
+
 
 int tmain(int argc, ArgumentString::value_type *argv[]) {
 
@@ -212,11 +226,13 @@ int tmain(int argc, ArgumentString::value_type *argv[]) {
             return run_just_scan(*compiler, settings.scan_file);            
         }
 
-        std::string db_name (compiler->get_compiler_name());
-        db_name.append(".db");
-        auto db_path = settings.working_directory_path/db_name;
+        auto db_path = settings.working_directory_path/"modules.db";
 
-        auto db = settings.drop_database?ModuleDatabase():load_database(db_path);
+        ModuleDatabase db;
+        if (!settings.drop_database) load_database(db, db_path);
+        if (!db.check_database_version(settings.compiler_path, settings.compiler_arguments)) {
+            Log::verbose("Settings has been changed, rebuilding");
+        }
 
         POriginEnv default_env = std::make_shared<OriginEnv>(OriginEnv::default_env());
 
@@ -239,7 +255,7 @@ int tmain(int argc, ArgumentString::value_type *argv[]) {
         std::vector<AbstractCompiler::ModuleMapping> module_map;
         if (settings.list) {
             db.extract_module_mapping(plan, module_map);
-            list_modules(module_map);
+            list_modules(db,module_map);
             return 0;
         }
 
@@ -261,7 +277,9 @@ int tmain(int argc, ArgumentString::value_type *argv[]) {
             cctable.save(settings.compile_commands_json);
         }
 
-        if (db.is_dirty()) save_database(db, db_path);
+        if (db.is_dirty()) {
+            save_database_binary(db, db_path);
+        }
 
         
         return ret?0:1;
