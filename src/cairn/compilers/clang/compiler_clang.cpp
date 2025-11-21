@@ -14,7 +14,7 @@
 #include <memory>
 
 Version CompilerClang::get_clang_version(Config &cfg) {
-    std::vector<ArgumentString> args;
+    std::vector<ArgumentString> args;    
     append_arguments(args, {"--version"},{});
     auto p = Process::spawn(cfg.program_path, cfg.working_directory, args, Process::output);
 
@@ -39,6 +39,10 @@ Version CompilerClang::get_clang_version(Config &cfg) {
 
 
 CompilerClang::CompilerClang(Config config) :_config((std::move(config))) {
+
+    SystemEnvironment env = SystemEnvironment::current();
+    _config.program_path = find_in_path(_config.program_path, env);
+
 
     _module_cache = _config.working_directory / "pcm";
     _object_cache = _config.working_directory / "obj";
@@ -98,8 +102,7 @@ SourceScanner::Info CompilerClang::scan(const OriginEnv &env, const std::filesys
 
 std::string CompilerClang::preprocess(const OriginEnv &env,const std::filesystem::path &file) const {
 
-    auto args = prepare_args(env);
-    args.insert(args.begin(), _config.compile_options.begin(), _config.compile_options.end());
+    auto args = prepare_args(env,_config,'-');
 
     args.erase(std::remove_if(args.begin(), args.end(), [&,skip = false](const ArgumentString &s) mutable {
         if (skip) {
@@ -142,8 +145,7 @@ std::vector<ArgumentString> CompilerClang::build_arguments(bool precompile_stage
     if (precompile_stage && (source.type == ModuleType::implementation || source.type == ModuleType::source )) {
         return args;
     }
-    args = prepare_args(env);                                            
-    args.insert(args.begin(), _config.compile_options.begin(), _config.compile_options.end());
+    args = prepare_args(env,_config,'-');                                            
 
 
     bool disable_experimental_warning = false;

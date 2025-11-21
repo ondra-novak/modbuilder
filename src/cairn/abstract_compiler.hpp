@@ -10,6 +10,8 @@
 #include "scanner.hpp"
 #include "source_def.hpp"
 
+class SystemEnvironment;
+
 class AbstractCompiler {
 public:
     
@@ -139,9 +141,11 @@ public:
         const std::filesystem::path &workdir, 
         std::span<const ArgumentString> arguments);
 
-    static std::vector<ArgumentString> prepare_args(const OriginEnv &env);
+    static std::vector<ArgumentString> prepare_args(const OriginEnv &env, const Config &config, char switch_char);
 
 
     static std::filesystem::path intermediate_file( const SourceDef &src, std::string_view ext);
     static void dump_failed_cmdline(const Config &cfg, const std::filesystem::path &workdir, std::span<const ArgumentString> cmdline);
+    static std::filesystem::path find_in_path(std::filesystem::path name, const SystemEnvironment &env);
+
 };

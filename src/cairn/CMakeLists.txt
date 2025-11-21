@@ -17,6 +17,7 @@ target_sources(core PRIVATE
         utils/log.cpp
         utils/process.cpp
         utils/temp_file.cpp
+        utils/env.cpp
 )   
 
 

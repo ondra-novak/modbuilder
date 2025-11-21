@@ -79,8 +79,7 @@ SourceScanner::Info CompilerGcc::scan(const OriginEnv &env, const std::filesyste
 
 std::pair<std::string,std::string> CompilerGcc::preprocess(const OriginEnv &env,const std::filesystem::path &file) const {
 
-    auto args = prepare_args(env);
-    args.insert(args.begin(), _config.compile_options.begin(), _config.compile_options.end());
+    auto args = prepare_args(env,_config,'-');
 
     args.erase(std::remove_if(args.begin(), args.end(), [&,skip = false](const ArgumentString &s) mutable {
         if (skip) {
@@ -125,6 +124,11 @@ std::pair<std::string,std::string> CompilerGcc::preprocess(const OriginEnv &env,
 }
 
 CompilerGcc::CompilerGcc(Config config):_config(std::move(config)) {
+
+    SystemEnvironment env = SystemEnvironment::current();
+    _config.program_path = find_in_path(_config.program_path, env);
+
+
     _module_cache = _config.working_directory / "gcm";
     _object_cache = _config.working_directory / "obj";
     _module_mapper = _config.working_directory / "modules.map";
@@ -218,8 +222,7 @@ std::vector<ArgumentString> CompilerGcc::build_arguments(const OriginEnv &env,
         CompileResult &result) const {
 
     std::vector<ArgumentString> args;
-    args = prepare_args(env);                                            
-    args.insert(args.begin(), _config.compile_options.begin(), _config.compile_options.end());
+    args = prepare_args(env,_config,'-');                                                
     append_arguments(args, {"-fmodules-ts", "-fmodule-mapper={}"},{path_arg(_module_mapper)});
 
     switch (source.type) {

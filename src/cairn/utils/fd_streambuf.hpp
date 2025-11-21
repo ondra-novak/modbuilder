@@ -1,21 +1,31 @@
 #pragma once
 #include <streambuf>
 #include <vector>
-#include <unistd.h>
 #include <cerrno>
 #include <cstring>
+
+#ifdef _WIN32
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+#else
+#include <unistd.h>
+#endif
 
 // Jednoduchý, přenositelný streambuf pro file descriptor
 class fd_streambuf : public std::streambuf {
     static constexpr std::size_t buf_size = 4096;
-
-    int fd_;
-    bool owner_;
-    std::vector<char> in_buffer_;
-    std::vector<char> out_buffer_;
-
 public:
-    explicit fd_streambuf(int fd, bool take_ownership = false)
+
+    #ifdef _WIN32
+    using FD = HANDLE;
+    static constexpr FD invalid_fd = INVALID_HANDLE_VALUE;
+    #else
+    using FD = int;
+    static constexpr FD invalid_fd = -1;
+    #endif
+    
+
+    explicit fd_streambuf(FD fd, bool take_ownership = false)
         : fd_(fd), owner_(take_ownership),
           in_buffer_(buf_size), out_buffer_(buf_size)
     {
@@ -25,19 +35,45 @@ public:
         setp(out_buffer_.data(), out_buffer_.data() + out_buffer_.size());
     }
 
-    ~fd_streambuf() override {
-        sync();
-        if (owner_ && fd_ >= 0)
-            ::close(fd_);
+    fd_streambuf(fd_streambuf &&other)
+        :fd_(other.fd_)
+        ,owner_(other.owner_)
+        ,in_buffer_(std::move(other.in_buffer_))
+        ,out_buffer_(std::move(other.out_buffer_)) {
+            other.owner_ = false;
+        }
+
+    fd_streambuf &operator=(fd_streambuf &&other) {
+        if (this != &other) {
+            std::destroy_at(this);
+            std::construct_at(this, std::move(other));
+        }
+        return *this;
     }
 
-protected:
+    ~fd_streambuf() override {
+        sync();
+        if (owner_ && fd_ != invalid_fd ) {
+#ifdef _WIN32
+            CloseHandle(fd_);
+#else
+            ::close(fd_);
+#endif
+        }
+    }
+
+protected:    
+
     // === čtení (input) ===
     int_type underflow() override {
         if (gptr() < egptr())
             return traits_type::to_int_type(*gptr());
-
+#ifdef _WIN32
+        DWORD n;
+        if (!ReadFile(fd_, in_buffer_.data(), static_cast<DWORD>(in_buffer_.size()), &n, NULL)) n = 0;
+#else
         ssize_t n = ::read(fd_, in_buffer_.data(), in_buffer_.size());
+#endif
         if (n <= 0) {
             // EOF nebo chyba
             return traits_type::eof();
@@ -63,14 +99,24 @@ protected:
     }
 
 private:
+    FD fd_;
+    bool owner_;
+    std::vector<char> in_buffer_;
+    std::vector<char> out_buffer_;
+
     int flush_buffer() {
         ptrdiff_t n = pptr() - pbase();
         char* data = out_buffer_.data();
         char* end = data + n;
-        ssize_t written = 0;
+        size_t written = 0;
 
         while (data < end) {
+#ifdef _WIN32
+            DWORD res;
+            if (!WriteFile(fd_,data, static_cast<DWORD>(end - data), &res, NULL)) res = 0;
+#else
             ssize_t res = ::write(fd_, data, end - data);
+#endif
             if (res < 0) {
                 if (errno == EINTR) continue;
                 return -1;
@@ -79,7 +125,7 @@ private:
             written += res;
         }
 
-        pbump(-n);
-        return written;
+        pbump(static_cast<int>(-n));
+        return static_cast<int>(written);
     }
 };

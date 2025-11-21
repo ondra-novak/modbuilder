@@ -53,9 +53,9 @@ static std::unique_ptr<AbstractCompiler> create_compiler(const AppSettings &sett
         auto exec_name = settings.compiler_path.filename().string();
         
         std::transform(exec_name.begin(), exec_name.end(), exec_name.begin(),
-               [](unsigned char c){ return std::tolower(c); });
+               [](unsigned char c){ return static_cast<char>(std::tolower(c)); });
 
-        if (exec_name == "cl" || exec_name == "cl.exe") {
+        if (exec_name.rfind("cl.exe") != exec_name.npos) {
             factory = &create_compiler_msvc;            
         } else if (exec_name.rfind("clang") != exec_name.npos) {
             factory = &create_compiler_clang;            
@@ -69,15 +69,6 @@ static std::unique_ptr<AbstractCompiler> create_compiler(const AppSettings &sett
     AbstractCompiler::Config cfg;
 
     cfg.program_path = settings.compiler_path;
-
-    for (const auto& dir : get_path_entries()) {
-        std::filesystem::path candidate = dir / cfg.program_path;
-        if (std::filesystem::exists(candidate) &&
-            std::filesystem::is_regular_file(candidate)) {
-                cfg.program_path = std::move(candidate);
-                break;
-        }
-    }
           
     cfg.compile_options  = std::move(settings.compiler_arguments);
     cfg.link_options  = std::move(settings.linker_arguments);
@@ -281,7 +272,11 @@ int tmain(int argc, ArgumentString::value_type *argv[]) {
             save_database_binary(db, db_path);
         }
 
-        
+        if (ret) {
+            Log::verbose("Done");
+        } else {
+            Log::error("Failed");
+        }
         return ret?0:1;
     } catch (std::exception &e) {
         Log::error("{}", e.what());

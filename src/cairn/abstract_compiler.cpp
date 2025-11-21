@@ -4,7 +4,6 @@
 #include <filesystem>
 #include <format>
 #include <string_view>
-#include <json/value.h>
 
 int AbstractCompiler::invoke(const Config &cfg, 
     const std::filesystem::path &workdir, 
@@ -27,13 +26,13 @@ std::filesystem::path AbstractCompiler::intermediate_file(const SourceDef &src, 
 }
 
 
-std::vector<ArgumentString> AbstractCompiler::prepare_args(const OriginEnv &env) {
+std::vector<ArgumentString> AbstractCompiler::prepare_args(const OriginEnv &env, const Config &config, char switch_char) {
     std::vector<ArgumentString> out;
     ArgumentString a;
     for (const auto &i: env.includes) {
         auto s = path_arg(i);
         a.clear();
-        a.push_back('-');
+        a.push_back(switch_char);
         a.push_back('I');
         a.append(s);
         out.push_back(a);
@@ -41,6 +40,10 @@ std::vector<ArgumentString> AbstractCompiler::prepare_args(const OriginEnv &env)
     for (const auto &o: env.options) {
         out.push_back(string_arg(o));
     }
+    for (const auto &c: config.compile_options) {
+        out.push_back(c);
+    }
+
     return out;        
 }
 
@@ -49,9 +52,37 @@ void AbstractCompiler::dump_failed_cmdline(const Config &cfg, const std::filesys
         std::ostringstream s;
         s << cfg.program_path.string();
         for (const auto &x: cmdline) {
-            s << " " << json::value(x).as<std::string_view>();
+            s << " " << std::filesystem::path(x);
         };
         return std::move(s).str();
     });
     Log::verbose("Working directory: {}", workdir.string());
+}
+
+std::filesystem::path AbstractCompiler::find_in_path(std::filesystem::path name, const SystemEnvironment &env)
+{    
+    auto lst_str =env["PATH"];
+#ifdef _WIN32
+    wchar_t sep = L';';
+#else  
+    wchar_t sep = ':';
+#endif
+
+    while (!lst_str.empty()) {
+        auto n = lst_str.find(sep);
+        auto p = n == lst_str.npos?lst_str:lst_str.substr(0,n);
+        lst_str = n == lst_str.npos?decltype(lst_str)():lst_str.substr(n+1);
+        std::filesystem::path dir(p);
+        std::filesystem::path candidate = dir / name;
+        if (std::filesystem::exists(candidate) &&
+            std::filesystem::is_regular_file(candidate)) {
+                return candidate;                
+        }
+
+    }
+
+    if (!std::filesystem::is_regular_file(name)) {
+        throw std::runtime_error("Unable to find executable: "+name.string());
+    }
+    return name;
 }

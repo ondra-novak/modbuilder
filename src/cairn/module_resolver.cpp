@@ -315,7 +315,7 @@ ModuleResolver::Result ModuleResolver::loadMap(const std::filesystem::path &dire
         Log::debug("Reading {}", json_file);
 
         auto ext = json_file.extension().string();
-        std::transform(ext.begin(), ext.end(), ext.begin(), [](char c)->char{return std::tolower(c);});
+        std::transform(ext.begin(), ext.end(), ext.begin(), [](char c)->char{return static_cast<char>(std::tolower(c));});
         if (json_file.extension() == ".yaml") {
             return process_yaml_like(jsin,json_file);
         } else {

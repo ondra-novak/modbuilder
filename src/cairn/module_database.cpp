@@ -115,6 +115,7 @@ void ModuleDatabase::check_for_modifications(AbstractCompiler &compiler) {
     for (const auto &[p, org] : _originMap) {
         if (ModuleResolver::detect_change(*org, cmptm)) {
             to_remove.push_back(p);
+            Log::debug("{} - changed origin", [&]{return p.string();});
         }
     }
     for (const auto &p: to_remove) _originMap.erase(p);
@@ -132,14 +133,18 @@ void ModuleDatabase::check_for_modifications(AbstractCompiler &compiler) {
     for (const auto &[p, f] : _fileIndex) {
         auto iter = _originMap.find(f->origin->config_file);
         if (iter == _originMap.end()) {
-            rescan.push_back(f);
+            to_remove.push_back(p);
+            Log::debug("{} - removed file because origin", [&]{return p.string();});
         } else {
             auto st = compiler.source_status(f->type, p, cmptm);    
             if (st != AbstractCompiler::SourceStatus::not_modified) {
+                Log::debug("{} - modified", [&]{return p.string();});
                 rescan.push_back(f);
             }
         }
     }
+
+    for (const auto &p: to_remove) _fileIndex.erase(p);
 
     for (const auto &f: rescan) {
         if (!is_header_module(f->type)) {
@@ -176,11 +181,14 @@ void ModuleDatabase::check_for_recompile() {
             //check whether targets exist
                 if ((generates_bmi(f->type) && f->bmi_path.empty()) || (generates_object(f->type) && f->object_path.empty())) {
                     f->state.recompile = true;
+                    Log::debug("{} - missing one of its products - scheduled for recompile", [&]{return f->source_file.string();});
+
                     mod = true;
                 } else  for (const auto &r: f->references) {
                     auto rf = find(r);
                     if (rf && rf->state.recompile) { 
                         f->state.recompile = true;
+                        Log::debug("{} - depends on recompiled file - scheduled for recompile", [&]{return f->source_file.string();});
                         mod = true;
                         break;
                     }
@@ -295,8 +303,21 @@ void ModuleDatabase::run_discovery(Unsatisfied &missing_ordered, AbstractCompile
         }
 
         if (to_explore.empty() || missing_ordered.empty()) break;
+
+        auto &front = to_explore.front();
+        Log::debug("Running discovery for {} . Missing: {}", [&]{return front.string();},
+            [&]{
+                char sep = ' ';
+                std::ostringstream s;
+                for (auto &x: missing_ordered) {
+                    s << sep << " " << x.name ;
+                    sep = ',';
+                };
+                return std::move(s).str();
+            });
+
         //adds files to database, but can extend dependencies
-         add_origin_no_discovery(to_explore.front(), compiler, missing_ordered);
+         add_origin_no_discovery(front, compiler, missing_ordered);
         to_explore.pop();
     }
 }

@@ -1,7 +1,13 @@
 #include "temp_file.hpp"
 #include <cstdio>
 #include <filesystem>
+
+#ifdef _WIN32
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+#else
 #include <unistd.h>
+#endif;
 
 
 OutputTempFile::~OutputTempFile() {
@@ -24,7 +30,11 @@ std::filesystem::path OutputTempFile::commit() {
 std::ostream &OutputTempFile::create() {
     reset();
 
+    #ifdef _WIN32
+    DWORD pid = GetCurrentProcessId();
+    #else
     int pid = ::getpid();
+    #endif
 
     char buffer[100];
     snprintf(buffer,sizeof(buffer), "cmdlst_%d_%p",pid,static_cast<void *>(this));
