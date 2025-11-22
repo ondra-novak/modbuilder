@@ -182,6 +182,7 @@ public:
 
     void export_database(std::ostream &s) const;
     void import_database(std::istream &s);
+    void update_compile_commands(CompileCommandsTable &cc, AbstractCompiler &compiler);
 
     template<typename Me, typename Arch>
     static void serialize(Me &me, Arch &arch) {

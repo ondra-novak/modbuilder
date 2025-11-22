@@ -3,6 +3,7 @@
 #include "module_resolver.hpp"
 #include "module_type.hpp"
 #include "scanner.hpp"
+#include "source_def.hpp"
 #include "utils/arguments.hpp"
 #include "utils/hash.hpp"
 #include "utils/log.hpp"
@@ -596,8 +597,7 @@ void ModuleDatabase::CompileAction::add_to_cctable(CompileCommandsTable &cctable
     if (std::holds_alternative<PSource>(step)) {
         const PSource &f = std::get<PSource>(step);
         std::vector<ArgumentString> result;
-        compiler.generate_compile_command(env, {f->type, f->name, f->source_file}, get_references(f), result);
-        cctable.update(cctable.record(env.working_dir, f->source_file, result));
+        compiler.update_compile_commands(cctable, env, {f->type, f->name, f->source_file}, get_references(f));
     } 
 }
 
@@ -651,4 +651,21 @@ bool ModuleDatabase::check_database_version(const std::filesystem::path &compile
 void ModuleDatabase::import_database(std::istream &s) {
     clear();
     deserialize_from_stream(s, *this);
+}
+
+void ModuleDatabase::update_compile_commands(CompileCommandsTable &cc, AbstractCompiler &compiler) {
+    std::vector<SourceDef> modules;
+    for (const auto &[p,f]: _fileIndex) {
+        modules.clear();
+        collect_bmi_references(f, [&](auto beg, auto end){
+            for (auto &f: std::ranges::subrange(beg,end)) {
+                if (!f->bmi_path.empty()) { //can't handle this case, so skip it 
+                    modules.push_back({f->type, f->name, f->bmi_path});
+                }
+            }            
+        });
+        compiler.update_compile_commands(cc, *f->origin, 
+            {f->type, f->name, f->source_file},
+            modules);            
+    }
 }

@@ -40,11 +40,8 @@ public:
     }
 
 
-    virtual bool generate_compile_command(
-        const OriginEnv &env,
-        const SourceDef &src,
-        std::span<const SourceDef> modules,
-        std::vector<ArgumentString> &result) const override;
+    virtual void update_compile_commands(CompileCommandsTable &cc,  const OriginEnv &env, 
+                const SourceDef &src, std::span<const SourceDef> modules) const  override;
 
 
     virtual void initialize_module_map(std::span<const ModuleMapping> ) override {}

@@ -270,7 +270,7 @@ int tmain(int argc, ArgumentString::value_type *argv[]) {
         if (!settings.compile_commands_json.empty()) {
             CompileCommandsTable cctable;
             cctable.load(settings.compile_commands_json);
-            for (auto &item: plan)item.action.add_to_cctable(cctable);            
+            db.update_compile_commands(cctable, *compiler);
             cctable.save(settings.compile_commands_json);
         }
 

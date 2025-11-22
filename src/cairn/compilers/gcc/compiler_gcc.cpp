@@ -1,4 +1,5 @@
 #include "compiler_gcc.hpp"
+#include "compile_commands_supp.hpp"
 #include "factory.hpp"
 #include "../../utils/log.hpp"
 #include "../../utils/temp_file.hpp"
@@ -278,18 +279,14 @@ std::unique_ptr<AbstractCompiler> create_compiler_gcc(AbstractCompiler::Config c
     return std::make_unique<CompilerGcc>(std::move(cfg));
 }
 
-bool CompilerGcc::generate_compile_command(
-        const OriginEnv &env,
-        const SourceDef &src,
-        std::span<const SourceDef> modules,
-        std::vector<ArgumentString> &result) const {
 
-    CompileResult dummy;
-    result = build_arguments(env, src, modules, dummy);
-    if (result.empty()) return false;
-    result.insert(result.begin(), path_arg(_config.program_path));
-    return true;
+void CompilerGcc::update_compile_commands(CompileCommandsTable &cc,  const OriginEnv &env, 
+                const SourceDef &src, std::span<const SourceDef> modules) const  {
 
+    CompileResult res;
+    auto args = build_arguments( env, src, modules, res);    
+    auto out = res.interface.empty()?std::move(res.object):std::move(res.interface);
+    cc.update(cc.record(env.working_dir, src.path, _config.program_path, std::move(args), std::move(out)));
 }
 
 AbstractCompiler::SourceStatus CompilerGcc::source_status(ModuleType t,

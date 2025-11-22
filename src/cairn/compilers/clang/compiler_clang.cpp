@@ -1,4 +1,5 @@
 #include "compiler_clang.hpp"
+#include "compile_commands_supp.hpp"
 #include "factory.hpp"
 #include "../../utils/log.hpp"
 #include "../../utils/temp_file.hpp"
@@ -145,7 +146,8 @@ std::vector<ArgumentString> CompilerClang::build_arguments(bool precompile_stage
     if (precompile_stage && (source.type == ModuleType::implementation || source.type == ModuleType::source )) {
         return args;
     }
-    args = prepare_args(env,_config,'-');                                            
+    args = prepare_args(env,_config,'-');     
+    append_arguments(args, {"-Xclang", "-fretain-comments-from-system-headers"},{});
 
 
     bool disable_experimental_warning = false;
@@ -229,18 +231,18 @@ int CompilerClang::compile(const OriginEnv &env,
     
 }
 
-bool CompilerClang::generate_compile_command(
-        const OriginEnv &env,
-        const SourceDef &src,
-        std::span<const SourceDef> modules,
-        std::vector<ArgumentString> &result) const {
+void CompilerClang::update_compile_commands(CompileCommandsTable &cc,  const OriginEnv &env, 
+                const SourceDef &src, std::span<const SourceDef> modules) const  {
 
-    CompileResult dummy;
-    result = build_arguments(false, env, src, modules, dummy);
-    if (result.empty()) return false;
-    result.insert(result.begin(), path_arg(_config.program_path));
-    return true;
-
+    CompileResult res;
+    auto args = build_arguments(true, env, src, modules, res);
+    if (!args.empty()) {
+        cc.update(cc.record(env.working_dir, src.path,_config.program_path, std::move(args), std::move(res.interface)));
+    } 
+    args = build_arguments(false, env, src, modules, res);
+    if (!args.empty()) {
+        cc.update(cc.record(env.working_dir, src.path, _config.program_path,std::move(args), std::move(res.object)));
+    } 
 }
 
 CompilerClang::SourceStatus CompilerClang::source_status(ModuleType t, const std::filesystem::path &file, std::filesystem::file_time_type tm) const

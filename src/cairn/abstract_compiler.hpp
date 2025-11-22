@@ -1,16 +1,17 @@
 #pragma once
-#include <string>
-#include <filesystem>
-#include <vector>
-#include <span>
+
 #include "module_type.hpp"
 #include "origin_env.hpp"
 #include "utils/arguments.hpp"
 #include "utils/which.hpp"
 #include "scanner.hpp"
 #include "source_def.hpp"
+#include <filesystem>
+#include <vector>
+#include <span>
 
 class SystemEnvironment;
+class CompileCommandsTable;
 
 class AbstractCompiler {
 public:
@@ -92,26 +93,34 @@ public:
         CompileResult &result) const = 0;
     
 
-    ///Generates compile command
-    /**
-     * @param env environment of file's origin
-     * @param source source file
-     * @param type type of module
-     * @param modules list of module mappings - it contains module name and path to BMI file (as returned from previous compile)
-     * @param result filled with command which was execute to compile
-     * @retval true generated
-     * @retval false this file cannot be added to compiled_commands
-     */
-    virtual bool generate_compile_command(
-        const OriginEnv &env,
-        const SourceDef &src,
-        std::span<const SourceDef> modules,
-        std::vector<ArgumentString> &result) const = 0;
 
+    ///Perform link operation
+    /**
+     * @param objects list of all objects
+     * @param output output executable
+     * @return linker status code, 0 = success
+     */
     virtual int link(std::span<const std::filesystem::path> objects, const std::filesystem::path &output) const = 0;
 
 
+    ///Update compile commands table
+    /**
+     * @param cc reference to compile commands table
+     * @param env source origin
+     * @param src source definition
+     * @param modules list of required modules (refering BMI files)
+     */
+    virtual void update_compile_commands(CompileCommandsTable &cc,  const OriginEnv &env, 
+                const SourceDef &src, std::span<const SourceDef> modules) const = 0;
+
+    ///Perform scan operation
+    /**
+     * @param env source origin
+     * @param file file to scan
+     * @return Scanner's information structure. If the file cannot be scanned, it returns empty status. The compiles will handle errors later
+     */
     virtual SourceScanner::Info scan(const OriginEnv &env, const std::filesystem::path &file) const = 0;
+
 
     enum class SourceStatus {
         not_modified,

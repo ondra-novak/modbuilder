@@ -1,3 +1,3 @@
 export module inner.Foo;
 
-export using FooType = int;eww
+export using FooType = int; 
