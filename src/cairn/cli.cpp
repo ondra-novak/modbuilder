@@ -30,7 +30,7 @@ Switches
 -jN       specify count of thread
 -p<type>  select compiler type: gcc|clang|msvc
 -c<path>  generate compile_commands.json (path=where)
--f<file>  specify environment file (modules.json) for this build
+-f<file>  specify environment file (modules.yaml) for this build
 -b<dir>   specify build directory
 -C        compile only (doesn't run linker)
 -L        link only (requires compiled files in build directory)
@@ -66,22 +66,31 @@ Example: gcc -DSPECIAL -I/usr/local/include --compile: -O2 -march=native --link:
 
 Module discovery
 ================
-A modules.json file can be defined in each module directory. The file is in JSON Object format 
+A modules.yaml file can be defined in each module directory. The file is in YAML format 
 with the following fields
 
-files       array[] : list of files to be scanned for modules
-prefixes    object{} : key - prefix (for module name)
-                                example: "A" - for all modules matching pattern A.xxx.yyy...
-                                example: "A%" - for all modules matching pattern Axxx.yyy...
-                                example: "" - all other modules 
-                       value - string or array - contains path(s) to other directories
-                                 can be relative
-work_dir    string : optional - can specify different working directory
-includes    array[] : list of include paths (required for -I switch)
-options     array[] : list of other compile options specific for this project
+files:          list of files involved in the build (optional)
+    -
+    -
+includes:       list of paths for searching headers (optional)
+    -
+    -
+options:        additional compile options (each on separate line)
+    -
+    -
+prefixes:       mapping prefix->paths              
+    pfx1:       All modules with prefix "pfx1" can be located 
+        -       on these paths
+        -
+    pfx2: xxx   example with single path
+    "":         all other modules 
+        -
+        -
+work_dir: path  specifies working directory (default: .)
+                defines a base path for all relative paths
 
-If modules.json is missing, then all *.cpp files in current directory are scanned for
-modules
+If modules.yaml is missing, then all *.cpp files in current directory are scanned for
+modules. All subdirectories used for mapping, wher name of directory is used as prefix
 
 Special usage:
 ==============

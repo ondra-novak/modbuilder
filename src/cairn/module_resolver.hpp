@@ -15,7 +15,6 @@ public:
     static Result loadMap(const std::filesystem::path &directory);
     static bool detect_change(const OriginEnv &env, std::filesystem::file_time_type treshold);
 
-    static std::string_view modules_json;
     static std::string_view modules_yaml;
 
 

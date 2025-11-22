@@ -1,0 +1,4 @@
+---
+work_dir: .
+includes:
+    - ../includes

@@ -4,14 +4,6 @@ project(cairn)
 include_directories(${CMAKE_BINARY_DIR})
 find_package(Git QUIET)
 if(GIT_FOUND)
-    execute_process(
-        COMMAND ${GIT_EXECUTABLE} submodule update --init
-        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-        RESULT_VARIABLE GIT_SUBMOD_RESULT
-    )
-    if(NOT GIT_SUBMOD_RESULT EQUAL 0)
-        message(WARNING "Failed to update git submodules.")
-    endif()
 
     # Generate version from git
     execute_process(

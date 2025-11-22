@@ -10,7 +10,6 @@
 #include "compilers/msvc/factory.hpp"
 #include "utils/arguments.hpp"
 #include <exception>
-#include <json/parser.h>
 #include <filesystem>
 #include <memory>
 #include <fstream>

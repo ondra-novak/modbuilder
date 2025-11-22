@@ -1,9 +1,0 @@
-{
-    "files":[
-        "modA_code.cpp",
-        "modB_code.cpp"
-    ],
-    "work_dir":".",
-    "includes":["../includes"]
-
-}
