@@ -18,9 +18,12 @@ import <filesystem>;
 import <iostream>;
 import <fstream>;
 import <memory>;
-import <future>;
 import <regex>;
 import <array>;
+import <stdexcept>;
+import <exception>;
+import <unordered_set>;
+import <atomic>;
 
 class CompilerGcc : public AbstractCompiler {
 public:
@@ -184,21 +187,22 @@ std::pair<std::string,std::string> CompilerGcc::preprocess(const OriginEnv &env,
 
     Process p = Process::spawn(_config.program_path, env.working_dir, args, Process::output|Process::error);
 
-    std::promise<std::string> errprom;
+    std::atomic<bool> done(false);
+    std::string err;
     _helper.push([&]() noexcept {
         try {
-            std::string err((std::istreambuf_iterator<char>(*p.stderr_stream)),
-                            std::istreambuf_iterator<char>());
-            errprom.set_value(std::move(err));
-        } catch (...) {
-            errprom.set_exception(std::current_exception());
-        }
+            err = std::string ((std::istreambuf_iterator<char>(*p.stderr_stream)),
+                            std::istreambuf_iterator<char>());            
+        } catch (...) { }
+        done = true;
+        done.notify_all();
+
     });
 
     std::string out((std::istreambuf_iterator<char>(*p.stdout_stream)),
                      std::istreambuf_iterator<char>());
 
-    auto err =errprom.get_future().get();
+    done.wait(false);
     if (p.waitpid_status()) {
         std::cerr << err << std::endl;
         dump_failed_cmdline(_config, env.working_dir, args);

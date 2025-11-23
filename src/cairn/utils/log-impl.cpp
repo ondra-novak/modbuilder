@@ -3,6 +3,7 @@ module cairn.utils.log;
 import <iostream>;
 import <mutex>;
 import <functional>;
+import <vector>;
 
 static std::mutex logmx;
 

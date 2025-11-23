@@ -12,7 +12,6 @@ files:
   - utf_8.cpp
   - thread_pool.cpp
   - version.cpp
-  - filesystem.cpp
   - serialization_rules.cpp
   - serializer.cpp
-  
+  - simple_json.cpp

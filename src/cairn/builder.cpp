@@ -7,8 +7,9 @@ import cairn.abstract_compiler;
 import cairn.build_plan;
 import cairn.utils.threadpool;
 import cairn.utils.log;
-import <future>;
 import <mutex>;
+import <atomic>;
+import <memory>;
 
 
 export class Builder {
@@ -21,7 +22,8 @@ public:
         ThreadPool &_thrp;
         const BuildPlan<Action> &_plan;
         typename BuildPlan<Action>::State _state;
-        std::promise<bool> _result;
+        std::atomic<bool> _done = {false};
+        bool _result = false;
         bool _is_stopped = false;
         bool _keep_going = false;
         std::mutex _mx;
@@ -40,7 +42,7 @@ public:
         static void next_step(std::shared_ptr<BuildState> st) {
             bool done = st->_plan.prepare_actions(st->_state, [&](auto id, const Action &action){
                 st->_thrp.push([st, &action, id]() noexcept {
-                    std::unique_lock lk(st->_mx);
+                    std::unique_lock<std::mutex> lk(st->_mx);
                     if (st->_is_stopped) return;
                     lk.unlock();                    
                     bool ok = action();
@@ -59,7 +61,9 @@ public:
         void finish(bool result) {
             if (!_is_stopped) {
                 _is_stopped = true;
-                _result.set_value(result);
+                _result = result;
+                _done = true;
+                _done.notify_all();
             }
         }
     };
@@ -68,11 +72,11 @@ public:
 
     template<typename Action>
     requires(std::is_nothrow_invocable_r_v<bool, Action>)
-    static std::future<bool> build(ThreadPool &tp, const BuildPlan<Action> &plan, bool keep_going) {
+    static bool build(ThreadPool &tp, const BuildPlan<Action> &plan, bool keep_going) {
         auto st = std::make_shared<BuildState<Action> >(tp, plan, keep_going);
-        auto ret = st->_result.get_future();
-        BuildState<Action>::start(std::move(st));
-        return ret;
+        BuildState<Action>::start(st);
+        st->_done.wait(false);        
+        return st->_result;
 
 
     }

@@ -7,7 +7,6 @@ import cairn.source_def;
 import cairn.utils.arguments;
 import cairn.utils.hash;
 import cairn.utils.log;
-import cairn.utils.filesystem;
 import cairn.abstract_compiler;
 import cairn.compile_commands;
 import cairn.utils.serializer;
@@ -342,7 +341,7 @@ ModuleDatabase::Unsatisfied ModuleDatabase::rescan_file(
         AbstractCompiler &compiler
     ) {
   
-    Log::debug("Scanning file: {}", source_file);
+    Log::debug("Scanning file: {}", [&]{return source_file.string();});
 
     std::vector<ModuleDatabase::Reference> unsatisfied;
 

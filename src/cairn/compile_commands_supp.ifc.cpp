@@ -2,9 +2,11 @@ export module cairn.compile_commands;
 
 import <filesystem>;
 import <vector>;
+import <unordered_map>;
+import <variant>;
 import cairn.utils.arguments;
 import cairn.utils.hash;
-import cairn.utils.vendors;
+import cairn.utils.simple_json;
 
 
 export class CompileCommandsTable {
@@ -16,7 +18,7 @@ public:
         std::vector<ArgumentString> arguments;
         ArgumentString command;
         std::filesystem::path output;
-        nlohmann::json original_json  = {};
+        Json original_json  = {};
     };
 
     struct Key {
@@ -47,7 +49,7 @@ public:
 
     void load(std::filesystem::path p);
     void save(std::filesystem::path p);
-    nlohmann::json export_db();
+    Json export_db();
     void update(CCRecord rec);
     
 

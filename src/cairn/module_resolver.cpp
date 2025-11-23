@@ -8,7 +8,6 @@ import <string_view>;
 import <system_error>;
 import cairn.utils.hash;
 import cairn.utils.log;
-import cairn.utils.filesystem;
 import cairn.utils.vendors;
 import cairn.utils.utf8;
 
@@ -27,7 +26,7 @@ void calculate_hash(ModuleResolver::Result &result) {
 
 ModuleResolver::Result scan_directory(const std::filesystem::path &directory) {
 
-    Log::debug("Scanning directory {}", directory);
+    Log::debug("Scanning directory {}", [&]{return directory.string();});
 
     ModuleResolver::Result out;
 
@@ -54,7 +53,7 @@ ModuleResolver::Result scan_directory(const std::filesystem::path &directory) {
         out.env.working_dir = directory;
         calculate_hash(out);
     } else {
-        Log::warning("Error open directory {} - code:  {}", directory, ec.message());
+        Log::warning("Error open directory {} - code:  {}", directory.string(), ec.message());
     }
 
     return out;

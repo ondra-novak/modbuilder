@@ -22,9 +22,10 @@ import <memory>;
 import <fstream>;
 import <system_error>;
 import <unordered_set>;
+import <map>;
 import <algorithm>;
 import <iostream>;
-import <future>;
+
 
 static constexpr auto gcc_type_1 = ArgumentConstant("gcc");
 static constexpr auto gcc_type_2 = ArgumentConstant("g++");
@@ -274,9 +275,10 @@ int tmain(int argc, ArgumentString::value_type *argv[]) {
         compiler->initialize_module_map(module_map);
         ThreadPool tp;
         tp.start(threads);
-        bool ret = Builder::build(tp, plan, settings.keep_going).get();
+        bool ret = Builder::build(tp, plan, settings.keep_going);
 
         if (!settings.compile_commands_json.empty()) {
+            Log::debug("Updating compile commands: {}", [&]{return settings.compile_commands_json.string();});
             CompileCommandsTable cctable;
             cctable.load(settings.compile_commands_json);
             db.update_compile_commands(cctable, *compiler);

@@ -1,9 +1,9 @@
 module cairn.compile_commands;
 
 import cairn.utils.arguments;
-import cairn.utils.vendors;
 import cairn.utils.hash;
 import cairn.utils.utf8;
+import cairn.utils.simple_json;
 
 import <filesystem>;
 import <fstream>;
@@ -14,22 +14,29 @@ import <string_view>;
 import <filesystem>;
 import <unordered_map>;
 import <vector>;
+import <variant>;
+import <optional>;
 
 
 void CompileCommandsTable::load(std::filesystem::path p)
 {
     std::ifstream f(p);
     if (f.is_open()) {
-        nlohmann::json jdata;
-        f >> jdata;
-        for (auto v: jdata) {            
+        Json jdata = Json::parse([&]()->std::optional<char> {
+            int c = f.get();
+            if (c == -1) return std::nullopt;
+            else return static_cast<char>(c);
+        });
+        for (auto &v: jdata.as_array()) {            
             CCRecord rc;
             rc.original_json = v;
 
-            auto jf = v.find("file");
-            auto joutput = v.find("output");
-            rc.file = jf != v.end() ? std::filesystem::path(u8_from_string(jf->get<std::string_view>())) : std::filesystem::path();
-            rc.output = joutput != v.end() ? std::filesystem::path(u8_from_string(joutput->get<std::string_view>())) : std::filesystem::path();
+            auto obj = v.as_object();            
+
+            auto jf = obj.find("file");
+            auto joutput = obj.find("output");
+            rc.file = jf != obj.end() ? std::filesystem::path(u8_from_string(jf->second.as_string())) : std::filesystem::path();
+            rc.output = joutput != obj.end() ? std::filesystem::path(u8_from_string(joutput->second.as_string())) : std::filesystem::path();
 
             if (std::filesystem::exists(rc.file)) {
                 update(std::move(rc));
@@ -38,40 +45,34 @@ void CompileCommandsTable::load(std::filesystem::path p)
     }
 }
 
-auto compatible_string(ArgumentStringView other) {
-    if constexpr(std::is_same_v<ArgumentStringView::value_type, char8_t>) {
-        return string_from_u8(other);
-    } else {
-        return other;
-    }
-}
-
-nlohmann::json CompileCommandsTable::export_db() {
-    nlohmann::json out = nlohmann::json::array();
+Json CompileCommandsTable::export_db() {
+    Json::Array out;
     for (const auto &[_,rc]: _table) {
         if (!rc.original_json.is_null()) {
             out.push_back(rc.original_json);
         } else {
-            nlohmann::json args = nlohmann::json::array();
+            Json::Array args;
             for (const auto &a: rc.arguments) {
-                args.push_back(compatible_string(a));
+                args.emplace_back(a);
             }
             out.push_back({
-                {"command", compatible_string(rc.command)},
-                {"file",string_from_u8(rc.file.u8string())},
-                {"directory", string_from_u8(rc.directory.u8string())},
+                {"command", rc.command},
+                {"file",rc.file.u8string()},
+                {"directory", rc.directory.u8string()},
                 {"arguments",std::move(args)},
-                {"output",string_from_u8(rc.output.u8string())}
+                {"output",rc.output.u8string()}
             });
         }
     }
-    return out;
+    return Json(std::move(out));
 
 }
 void CompileCommandsTable::save(std::filesystem::path p) {
     auto db = export_db();
     std::ofstream out(p, std::ios::out| std::ios::trunc);
-    out << db;
+    db.serialize([&](char c){
+        out.put(c);
+    });
 }
 
 void CompileCommandsTable::update(CCRecord rec) {

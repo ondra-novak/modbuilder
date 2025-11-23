@@ -15,13 +15,17 @@ concept has_serialize_method = requires(Obj obj, Arch arch) {
     {std::remove_cvref_t<Obj>::template serialize<Obj, Arch>(obj, arch)};
 };
 
-export template<typename T>
-struct SerializationRule;
-
 export template<typename Obj, typename Arch>
 concept has_serialize_rule = requires(Obj obj, Arch arch) {
-    {SerializationRule<std::remove_cvref_t<Obj> >::template serialize<Obj, Arch>(obj, arch)};
+    {serialize_rule(obj, arch)}->std::same_as<void>;
 };
+export template<typename Obj, typename Arch>
+concept has_deserialize_rule = requires(Obj obj, Arch arch) {
+    {deserialize_rule(obj, arch)}->std::same_as<void>;
+};
+
+
+
 
 template<typename T> struct is_shared_ptr_t {static constexpr bool value = false;};
 template<typename T> struct is_shared_ptr_t<std::shared_ptr<T> > {static constexpr bool value = true;};
@@ -64,7 +68,7 @@ public:
         } else if constexpr(has_serialize_method<const T &, SerializerBinaryWriter &>) {
             T::template serialize<const T &, SerializerBinaryWriter &>(val, *this);
         } else if constexpr(has_serialize_rule<const T &, SerializerBinaryWriter &>) {
-            SerializationRule<T>::serialize(val, *this);
+            serialize_rule(val, *this);
         } else {
             static_assert(std::is_trivially_copy_assignable_v<T>, "Missing serialization rules, type is not trivial");
             write_binary(val);
@@ -121,8 +125,8 @@ public:
             this->operator()(*val);
         } else if constexpr(has_serialize_method<T &, SerializerBinaryReader &>) {
             T::template serialize<T &, SerializerBinaryReader &>(val, *this);
-        } else if constexpr(has_serialize_rule<T &, SerializerBinaryReader &>) {
-            SerializationRule<T>::serialize(val, *this);
+        } else if constexpr(has_deserialize_rule<T &, SerializerBinaryReader &>) {
+            deserialize_rule(val, *this);
         } else {
             static_assert(std::is_trivially_copy_assignable_v<T>, "Missing serialization rules, type is not trivial");
             read_binary(val);
