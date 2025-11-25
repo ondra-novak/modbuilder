@@ -4,6 +4,7 @@
 #include "cli.hpp"
 #include "compile_commands_supp.hpp"
 #include "module_database.hpp"
+#include "module_resolver.hpp"
 #include "module_type.hpp"
 #include "origin_env.hpp"
 #include "utils/log.hpp"
@@ -11,6 +12,7 @@
 #include "compilers/clang/factory.hpp"
 #include "compilers/msvc/factory.hpp"
 #include "utils/arguments.hpp"
+#include "utils/thread_pool.hpp"
 #include "utils/utf_8.hpp"
 #include <exception>
 #include <filesystem>
@@ -303,18 +305,36 @@ int tmain(int argc, ArgumentString::value_type *argv[]) {
         POriginEnv default_env = std::make_shared<OriginEnv>(OriginEnv::default_env());
 
         db.check_for_modifications(*compiler);
+        auto targets = settings.targets;
         if (!settings.env_file_json.empty()) {
-            db.add_origin(settings.env_file_json, *compiler);
+            auto r = ModuleResolver::loadMap(settings.env_file_json);
+            db.add_origin(r, *compiler);
+            if (!r.targets.empty() && targets.empty()) { 
+                targets = r.targets;
+            }
         }
-        for (const auto &ts: settings.targets) {
+        for (const auto &ts: targets) {
             db.add_file( ts.source, *compiler);
         }
+
+        if (!settings.generate_makefile.empty()) {
+            db.recompile_all();
+            auto mplan = db.create_build_plan(*compiler, *default_env, 
+                    targets, false,  !settings.lib_arguments.empty());
+            compiler->dry_run(true);
+            ThreadPool tp;
+            tp.start(1);
+            Builder::build(tp, mplan, true).get();
+            generate_makefile(mplan, settings.generate_makefile);            
+            return 0;
+        }
+
 
         if (settings.recompile || settings.list) db.recompile_all();
         else db.check_for_recompile();
 
         auto plan = db.create_build_plan(*compiler, *default_env, 
-                    settings.targets, false,  !settings.lib_arguments.empty());
+                    targets, false,  !settings.lib_arguments.empty());
 
     
                 
@@ -343,12 +363,6 @@ int tmain(int argc, ArgumentString::value_type *argv[]) {
             cctable.load(settings.compile_commands_json);
             db.update_compile_commands(cctable, *compiler);
             cctable.save(settings.compile_commands_json);
-        }
-        if (!settings.generate_makefile.empty()) {
-            db.recompile_all();
-            auto mplan = db.create_build_plan(*compiler, *default_env, 
-                    settings.targets, false,  !settings.lib_arguments.empty());
-            generate_makefile(mplan, settings.generate_makefile);
         }
 
         if (db.is_dirty()) {

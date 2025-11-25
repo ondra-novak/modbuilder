@@ -1,4 +1,5 @@
 #pragma once
+#include "compile_target.hpp"
 #include "origin_env.hpp"
 #include <vector>
 #include <filesystem>
@@ -8,6 +9,7 @@ public:
 
     struct Result {
         std::vector<std::filesystem::path> files;
+        std::vector<CompileTarget> targets;
         OriginEnv env;
     };
 

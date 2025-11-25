@@ -378,6 +378,8 @@ std::string CompilerMSVC::map_module_name(const std::string_view &name) {
 int CompilerMSVC::invoke(const std::filesystem::path &workdir, 
     std::span<const ArgumentString> arguments) const
 {
+    if (_disable_build) return 0;
+
     Process p = Process::spawn(_config.program_path, workdir, arguments, Process::output, _env_cache.env);
     std::string dummy(std::istreambuf_iterator<char>(*p.stdout_stream), std::istreambuf_iterator<char>());
     int r =  p.waitpid_status();

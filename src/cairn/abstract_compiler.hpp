@@ -148,9 +148,9 @@ public:
         std::filesystem::create_directories(file_path.parent_path());
     }
 
-    static int invoke(const Config &cfg, 
+    int invoke(const Config &cfg, 
         const std::filesystem::path &workdir, 
-        std::span<const ArgumentString> arguments);
+        std::span<const ArgumentString> arguments) const;
 
     static std::vector<ArgumentString> prepare_args(const OriginEnv &env, const Config &config, char switch_char);
 
@@ -159,4 +159,10 @@ public:
     static void dump_failed_cmdline(const Config &cfg, const std::filesystem::path &workdir, std::span<const ArgumentString> cmdline);
     static std::filesystem::path find_in_path(std::filesystem::path name, const SystemEnvironment &env);
 
+    void dry_run(bool enabled) {
+        _disable_build = enabled;
+    }
+
+protected:
+    bool _disable_build = false;
 };

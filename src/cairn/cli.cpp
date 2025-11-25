@@ -41,7 +41,7 @@ Switches
 -d        debug mode (output everyting)
 -l --list don't compile, just output list of all referenced modules and headers
 -M<file>  don't compile, create makefile containing all build steps needs to 
-          create targets. 
+          create targets (works well with clang++ v18+) 
 
 outputN   specifies path/name of output executable
 fileN.cpp specifies path/name of main file for this executable
@@ -90,6 +90,9 @@ prefixes:       mapping prefix->paths
         -
 work_dir: path  specifies working directory (default: .)
                 defines a base path for all relative paths
+
+targets:                allows to define targets, they are used only 
+    name:source_path    when this file is specified as -f switch
 
 If modules.yaml is missing, then all *.cpp files in current directory are scanned for
 modules. All subdirectories used for mapping, wher name of directory is used as prefix

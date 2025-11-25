@@ -7,8 +7,9 @@
 
 int AbstractCompiler::invoke(const Config &cfg, 
     const std::filesystem::path &workdir, 
-    std::span<const ArgumentString> arguments)
+    std::span<const ArgumentString> arguments) const
 {
+    if (_disable_build) return 0;
     Process p = Process::spawn(cfg.program_path, workdir, arguments, Process::no_streams);
     return p.waitpid_status();
 

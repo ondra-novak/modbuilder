@@ -73,6 +73,7 @@ ModuleResolver::Result process_yaml(const std::filesystem::path &yaml_file) {
     auto options = root["options"];
     auto prefixes = root["prefixes"];
     auto work_dir = root["work_dir"];
+    auto targets = root["targets"];
 
     if (!work_dir.is_null()) {
         if (!work_dir.is_string()) throw std::runtime_error("`work_dir` must be a path");
@@ -113,11 +114,22 @@ ModuleResolver::Result process_yaml(const std::filesystem::path &yaml_file) {
     }
 
     if (!options.is_null()) {
-    if (!options.is_sequence()) throw std::runtime_error("`options` must be a sequence");
-        for ( auto &x:files.as_seq()) {
-            result.files.push_back(x.as_str());
+        if (!options.is_sequence()) throw std::runtime_error("`options` must be a sequence");
+            for ( auto &x:files.as_seq()) {
+                result.files.push_back(x.as_str());
+            }
+    }
+
+    if (!targets.is_null()) {
+        if (!targets.is_mapping()) throw std::runtime_error("`targets` must be a key-value mapping");
+        for (auto &[k, v]: targets.as_map()) {
+            result.targets.push_back({
+                (base/u8_from_string(k.as_str())).lexically_normal(),
+                (base/u8_from_string(v.as_str())).lexically_normal()
+            });
         }
     }
+
     calculate_hash(result);
     return result;
     

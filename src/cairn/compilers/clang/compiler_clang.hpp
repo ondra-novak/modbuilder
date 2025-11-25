@@ -3,6 +3,7 @@
 #include "../../utils/arguments.hpp"
 #include "../../utils/version.hpp"
 #include "factory.hpp"
+#include "preprocess.hpp"
 #include <array>
 #include <filesystem>
 
@@ -71,7 +72,7 @@ protected:
     std::filesystem::path _module_cache;
     std::filesystem::path _object_cache;
     Version _version;
-    
+    StupidPreprocessor _preproc;
   
 
     std::filesystem::path get_bmi_path(const SourceDef &src) const {

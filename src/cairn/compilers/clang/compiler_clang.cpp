@@ -3,11 +3,15 @@
 #include "factory.hpp"
 #include "../../utils/log.hpp"
 #include "../../utils/utf_8.hpp"
+#include "../../gnu_compiler_setup.hpp"
 #include "module_type.hpp"
+#include "preprocess.hpp"
+#include "utils/thread_pool.hpp"
 #include <algorithm>
 #include <filesystem>
 
 #include <fstream>
+#include <iterator>
 #include <regex>
 #include <stdexcept>
 #include <utils/arguments.hpp>
@@ -54,7 +58,12 @@ CompilerClang::CompilerClang(Config config) :_config((std::move(config))) {
     if (_version < Version("18.0")) {
         throw std::runtime_error("CLANG: version 18.0 or higher is required. Found: " + _version.to_string());
     }
-    }
+
+    ThreadPool tp;
+    tp.start(1);
+    _preproc = initialize_preprocesor_using_gnu_compiler(_config.program_path, tp);
+
+}
 
 void CompilerClang::prepare_for_build() {
     std::filesystem::create_directories(_module_cache);
@@ -106,34 +115,55 @@ SourceScanner::Info CompilerClang::scan(const OriginEnv &env, const std::filesys
 std::string CompilerClang::preprocess(const OriginEnv &env,const std::filesystem::path &file) const {
 
     auto args = prepare_args(env,_config,'-');
-
-    args.erase(std::remove_if(args.begin(), args.end(), [&,skip = false](const ArgumentString &s) mutable {
-        if (skip) {
-            skip = false;
-            return false;
+    int a = -1;
+    StupidPreprocessor preproc = _preproc;
+    for (ArgumentStringView itm: args) {
+        if (itm == preproc_D || itm == preproc_define_macro) {
+            a = 0;
+            continue;
+        } else if (itm == preproc_I || itm == preproc_include_directory){
+            a = 1;
+            continue;
+        } else if (itm == preproc_U || itm == preproc_define_macro) {
+            a = 2;
+            continue;
+        } else if (itm.substr(0, preproc_D.length()) == preproc_D) {
+            a = 0;
+            itm = itm.substr(preproc_D.length());            
+        } else if (itm.substr(0, preproc_I.length()) == preproc_I) {
+            a = 1;
+            itm = itm.substr(preproc_U.length());            
+        } else if (itm.substr(0, preproc_U.length()) == preproc_U) {
+            a = 2;
+            itm = itm.substr(preproc_U.length());            
         }
-        auto f1 = std::find(all_preproc.begin(), all_preproc.end(), s);
-        if (f1 != all_preproc.end()) {
-            skip = true;
-            return false;
+        switch (a) {
+            case 0: {
+                auto sep = std::min(itm.find(' '), itm.length());
+                std::string key;
+                std::string value;
+                to_utf8(itm.data(), itm.data()+sep, std::back_inserter(key));
+                if (sep < itm.length()) ++sep;
+                to_utf8(itm.data()+sep, itm.data()+itm.length(), std::back_inserter(value));
+                preproc.define_symbol(key,value);
+                break;
+            } 
+            case 1: {
+                preproc.append_includes(env.working_dir/itm);
+                break;
+            }
+            case 2: {
+                std::string value;
+                to_utf8(itm.begin(), itm.end(), std::back_inserter(value));
+                preproc.undef_symbol(value);
+                break;
+            }
+            default:break;
         }
-        auto f2 = std::find_if(all_preproc.begin(), all_preproc.end(), [&](const ArgumentStringView &w) {
-            return s.starts_with(w);
-        });
-        return (f2 == all_preproc.end());
-    }), args.end());
-    append_arguments(args, {"-xc++", "-E", "{}"}, {path_arg(file)});
-
-
-    Process p = Process::spawn(_config.program_path, env.working_dir, args, Process::output);
-
-    std::string out((std::istreambuf_iterator<char>(*p.stdout_stream)),
-                     std::istreambuf_iterator<char>());
-
-    if (p.waitpid_status()) {
-        dump_failed_cmdline(_config, env.working_dir, args);
+        a = -1;
     }
-    return out;
+
+    return preproc.run(env.working_dir, file);
 }
 
 std::vector<ArgumentString> CompilerClang::build_arguments(bool precompile_stage,  const OriginEnv &env,

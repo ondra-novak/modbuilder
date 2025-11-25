@@ -2,6 +2,7 @@
 #include <atomic>
 #include "module_resolver.hpp"
 #include "module_type.hpp"
+#include "origin_env.hpp"
 #include "scanner.hpp"
 #include "source_def.hpp"
 #include "utils/arguments.hpp"
@@ -236,47 +237,43 @@ ModuleDatabase::Source ModuleDatabase::from_scanner(const std::filesystem::path 
     return out;
 }
 
-std::pair<POriginEnv,bool> ModuleDatabase::add_origin_no_discovery(const std::filesystem::path &origin_path, AbstractCompiler &compiler, Unsatisfied &missing) {
-    
+POriginEnv ModuleDatabase::add_origin_no_discovery(const ModuleResolver::Result &origin, AbstractCompiler &compiler, Unsatisfied &missing) {
 
-    ModuleResolver::Result mres;
-    bool loaded = false;
     //attempt to find origin to this path
     //in database
-    auto iter =  _originMap.find(origin_path);
-    if (iter == _originMap.end()) {
-        //indirecty
-        mres = ModuleResolver::loadMap(origin_path);
-        iter = _originMap.find(mres.env.config_file);       
-        loaded = true;
-    }
+    auto iter =  _originMap.find(origin.env.config_file);
 
     if (iter == _originMap.end()) {
         //really don't known, create it
-        POriginEnv env = std::make_shared<OriginEnv>(mres.env);
+        POriginEnv env = std::make_shared<OriginEnv>(origin.env);
         //add to known origins
         _originMap.emplace(env->config_file, env);
         //load allo files
-        for (auto &x: mres.files) {
+        for (auto &x: origin.files) {
             //rescan this file and find unknown references
             missing = merge_references(std::move(missing),
                                  rescan_file(env, x, compiler));
         }
-        return {env, true};
+        return env;
     }  else {
         POriginEnv o = iter->second;
-        if (!loaded) {
-            mres = ModuleResolver::loadMap(origin_path);
-        }
-        for (const auto &f: mres.files) {
+        for (const auto &f: origin.files) {
             if (!find(f)) {
                 missing = merge_references(missing, rescan_file(o, f, compiler));
             }
         }
 
 
-        return {o, false};
+        return o;
     }
+
+}
+
+POriginEnv ModuleDatabase::add_origin_no_discovery(const std::filesystem::path &origin_path, AbstractCompiler &compiler, Unsatisfied &missing) {
+
+
+    ModuleResolver::Result mres = ModuleResolver::loadMap(origin_path);
+    return add_origin_no_discovery(mres, compiler, missing);
 }
 
 
@@ -322,18 +319,26 @@ void ModuleDatabase::run_discovery(Unsatisfied &missing_ordered, AbstractCompile
         to_explore.pop();
     }
 }
-POriginEnv ModuleDatabase::add_origin(const std::filesystem::path &origin_path, AbstractCompiler &compiler) {
-
+POriginEnv ModuleDatabase::add_origin(const ModuleResolver::Result &origin, AbstractCompiler &compiler) {
     Unsatisfied missing;
-    auto r = add_origin_no_discovery(origin_path, compiler, missing);
+    auto r = add_origin_no_discovery(origin, compiler, missing);
     run_discovery(missing, compiler);
-    return r.first;
+    return r;
+
 }
 
 bool ModuleDatabase::add_file(const std::filesystem::path &source_file, AbstractCompiler &compiler) {
     auto f = find(source_file);    
     if (f) return false;
-    POriginEnv env = add_origin(source_file.parent_path(), compiler);
+    auto parent =source_file.parent_path();
+    POriginEnv env;
+    auto iter = _originMap.find(parent);
+    if (iter != _originMap.end()) {
+        env = iter->second;
+    } else {
+        auto r = ModuleResolver::loadMap(source_file.parent_path());
+        env = add_origin(r, compiler);
+    }
     Unsatisfied missing =  rescan_file(env, source_file, compiler);
     run_discovery(missing, compiler);
     return true;

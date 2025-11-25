@@ -1,5 +1,6 @@
 #pragma once
 
+#include "module_resolver.hpp"
 #include "module_type.hpp"
 #include "scanner.hpp"
 #include "utils/arguments.hpp"
@@ -134,9 +135,10 @@ public:
 
     using Unsatisfied = std::vector<Reference>;
 
-    std::pair<POriginEnv,bool> add_origin_no_discovery(const std::filesystem::path &origin_path, AbstractCompiler &compiler, Unsatisfied &missing);
+    POriginEnv add_origin_no_discovery(const std::filesystem::path &origin_path, AbstractCompiler &compiler, Unsatisfied &missing);
+    POriginEnv add_origin_no_discovery(const ModuleResolver::Result &origin, AbstractCompiler &compiler, Unsatisfied &missing);
     void run_discovery(Unsatisfied &missing_ordered, AbstractCompiler &compiler);
-    POriginEnv add_origin(const std::filesystem::path &origin_path, AbstractCompiler &compiler);
+    POriginEnv add_origin(const ModuleResolver::Result &origin, AbstractCompiler &compiler);
     void rescan_origin(POriginEnv origin);
 
     ///Rescan simple file

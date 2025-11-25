@@ -14,6 +14,7 @@ target_sources(core PRIVATE
         abstract_compiler.cpp
         compile_commands_supp.cpp
         cli.cpp
+        preprocess.cpp
         utils/log.cpp
         utils/process.cpp
         utils/temp_file.cpp
