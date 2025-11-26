@@ -3,6 +3,7 @@
 #include "../../utils/arguments.hpp"
 #include "../../utils/version.hpp"
 #include "../../utils/thread_pool.hpp"
+#include "../../preprocess.hpp"
 #include "factory.hpp"
 #include <filesystem>
 #include <array>
@@ -28,7 +29,6 @@ public:
     virtual SourceScanner::Info scan(const OriginEnv &env, const std::filesystem::path &file) const override;
 
 
-    std::pair<std::string,std::string> preprocess(const OriginEnv &env, const std::filesystem::path &file) const;
 
     CompilerGcc(Config config);
 
@@ -66,8 +66,9 @@ protected:
     std::filesystem::path _module_cache;
     std::filesystem::path _object_cache;
     std::filesystem::path _module_mapper;
-    Version _version;
-    mutable ThreadPool _helper;
+    Version _version;    
+    StupidPreprocessor _preproc;
+
     
 
     static Version get_gcc_version(Config &cfg);

@@ -103,7 +103,9 @@ int CompilerClang::link(std::span<const std::filesystem::path> objects, const st
 
 SourceScanner::Info CompilerClang::scan(const OriginEnv &env, const std::filesystem::path &file) const
 {
-    auto info =  SourceScanner::scan_string(preprocess(env, file));
+    auto args = prepare_args(env,_config,'-');
+    auto preproc = _preproc;
+    auto info =  SourceScanner::scan_string(run_preprocess(preproc, args, env.working_dir, file));
     for (auto &s: info.required) {
         if (s.type == ModuleType::user_header) {
             s.name = (env.working_dir/s.name).lexically_normal().string();
@@ -112,59 +114,7 @@ SourceScanner::Info CompilerClang::scan(const OriginEnv &env, const std::filesys
     return info;
 }
 
-std::string CompilerClang::preprocess(const OriginEnv &env,const std::filesystem::path &file) const {
 
-    auto args = prepare_args(env,_config,'-');
-    int a = -1;
-    StupidPreprocessor preproc = _preproc;
-    for (ArgumentStringView itm: args) {
-        if (itm == preproc_D || itm == preproc_define_macro) {
-            a = 0;
-            continue;
-        } else if (itm == preproc_I || itm == preproc_include_directory){
-            a = 1;
-            continue;
-        } else if (itm == preproc_U || itm == preproc_define_macro) {
-            a = 2;
-            continue;
-        } else if (itm.substr(0, preproc_D.length()) == preproc_D) {
-            a = 0;
-            itm = itm.substr(preproc_D.length());            
-        } else if (itm.substr(0, preproc_I.length()) == preproc_I) {
-            a = 1;
-            itm = itm.substr(preproc_U.length());            
-        } else if (itm.substr(0, preproc_U.length()) == preproc_U) {
-            a = 2;
-            itm = itm.substr(preproc_U.length());            
-        }
-        switch (a) {
-            case 0: {
-                auto sep = std::min(itm.find(' '), itm.length());
-                std::string key;
-                std::string value;
-                to_utf8(itm.data(), itm.data()+sep, std::back_inserter(key));
-                if (sep < itm.length()) ++sep;
-                to_utf8(itm.data()+sep, itm.data()+itm.length(), std::back_inserter(value));
-                preproc.define_symbol(key,value);
-                break;
-            } 
-            case 1: {
-                preproc.append_includes(env.working_dir/itm);
-                break;
-            }
-            case 2: {
-                std::string value;
-                to_utf8(itm.begin(), itm.end(), std::back_inserter(value));
-                preproc.undef_symbol(value);
-                break;
-            }
-            default:break;
-        }
-        a = -1;
-    }
-
-    return preproc.run(env.working_dir, file);
-}
 
 std::vector<ArgumentString> CompilerClang::build_arguments(bool precompile_stage,  const OriginEnv &env,
         const SourceDef &source,

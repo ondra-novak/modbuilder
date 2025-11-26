@@ -64,6 +64,8 @@ public:
 
     std::string run(const std::filesystem::path &workdir, const std::filesystem::path &src_file);
 
+    const auto &get_include_paths() const {return _includes;}
+
 
 protected:
 

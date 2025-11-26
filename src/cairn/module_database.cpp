@@ -588,10 +588,20 @@ bool ModuleDatabase::CompileAction::operator()() const noexcept
             return res == 0;
         } else {
             const LinkStep  &lnk = std::get<LinkStep>(step);
-            std::vector<std::filesystem::path> objs;
+            std::unordered_set<std::filesystem::path> objs;
             objs.reserve(lnk.first.size());
-            for (const auto &f: lnk.first) objs.push_back(f->object_path);
-            int res = compiler.link(objs, lnk.second);
+            for (auto &f: lnk.first) {
+                if (!objs.insert(f->object_path).second) {
+                    for (auto &g: lnk.first) if (g->object_path == f->object_path) {
+                            Log::warning("Duplicate object file: {} for {} origin {}", 
+                                g->object_path.string(), 
+                                g->source_file.string(), 
+                                g->origin->config_file);
+                    }
+                }
+            }
+            auto objs_vec = std::vector(objs.begin(), objs.end());
+            int res = compiler.link(objs_vec, lnk.second);
             return res == 0;
         }
     } catch (std::exception &e) {
@@ -611,10 +621,13 @@ void ModuleDatabase::CompileAction::add_to_cctable(CompileCommandsTable &cctable
         compiler.update_compile_commands(cctable, env, {f->type, f->name, f->source_file}, get_references(f));
     } else if (std::holds_alternative<LinkStep>(step)) {
         const LinkStep &lnk = std::get<LinkStep>(step);
-        std::vector<std::filesystem::path> objs;
+        std::unordered_set<std::filesystem::path> objs;
         objs.reserve(lnk.first.size());
-        for (auto &f: lnk.first) objs.push_back(f->object_path);
-        compiler.update_link_command(cctable, objs, lnk.second);
+        for (auto &f: lnk.first) {
+            objs.insert(f->object_path);
+        }
+        auto objs_vec = std::vector(objs.begin(), objs.end());
+        compiler.update_link_command(cctable, objs_vec, lnk.second);
     }
 }
 

@@ -27,7 +27,7 @@ std::string read_string(Fn &&fn, std::string beg) {
 
 template<typename Fn>
 auto StupidPreprocessor::tokenizer(Fn &&fn) {
-    return [fn = std::forward<Fn>(fn), prev = -1, cur = Token()]() mutable {        
+    return [fn = std::forward<Fn>(fn), cur = Token()]() mutable {        
         if (cur.type == TokenType::eof) return cur;
         while (true) {
             int c = fn();

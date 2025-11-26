@@ -27,9 +27,6 @@ public:
 
     virtual SourceScanner::Info scan(const OriginEnv &env, const std::filesystem::path &file) const override;
 
-
-    std::string preprocess(const OriginEnv &env, const std::filesystem::path &file) const;
-
     CompilerClang(Config config);
 
     virtual bool initialize_build_system(BuildSystemConfig ) override {
@@ -49,18 +46,6 @@ public:
 
 
     static constexpr auto stdcpp=ArgumentConstant("-std=c++");
-
-    //preprocessor options
-    static constexpr auto preproc_D = ArgumentConstant("-D");
-    static constexpr auto preproc_U = ArgumentConstant("-U");
-    static constexpr auto preproc_I = ArgumentConstant("-I");
-    static constexpr auto preproc_define_macro = ArgumentConstant("--define-macro");
-    static constexpr auto preproc_undefine_macro = ArgumentConstant("--undefine-macro");
-    static constexpr auto preproc_include_directory = ArgumentConstant("--include-directory");
-    
-    static constexpr auto all_preproc = std::array<ArgumentStringView, 6>({
-        preproc_D, preproc_I, preproc_U, preproc_define_macro, preproc_undefine_macro, preproc_include_directory
-    });
 
     virtual void update_link_command(CompileCommandsTable &cc,  
                 std::span<const std::filesystem::path> objects, const std::filesystem::path &output) const override; 

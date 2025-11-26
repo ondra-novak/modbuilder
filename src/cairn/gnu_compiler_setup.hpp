@@ -61,4 +61,67 @@ inline StupidPreprocessor initialize_preprocesor_using_gnu_compiler(std::filesys
     return preproc;
 }   
 
+//preprocessor options
+static constexpr auto preproc_D = ArgumentConstant("-D");
+static constexpr auto preproc_U = ArgumentConstant("-U");
+static constexpr auto preproc_I = ArgumentConstant("-I");
+static constexpr auto preproc_define_macro = ArgumentConstant("--define-macro");
+static constexpr auto preproc_undefine_macro = ArgumentConstant("--undefine-macro");
+static constexpr auto preproc_include_directory = ArgumentConstant("--include-directory");
 
+
+
+inline std::string run_preprocess(StupidPreprocessor &preproc,
+         std::span<const ArgumentString> args,
+         const std::filesystem::path &workdir,
+         const std::filesystem::path &file)  {
+
+    int a = -1;
+    for (ArgumentStringView itm: args) {
+        if (itm == preproc_D || itm == preproc_define_macro) {
+            a = 0;
+            continue;
+        } else if (itm == preproc_I || itm == preproc_include_directory){
+            a = 1;
+            continue;
+        } else if (itm == preproc_U || itm == preproc_define_macro) {
+            a = 2;
+            continue;
+        } else if (itm.substr(0, preproc_D.length()) == preproc_D) {
+            a = 0;
+            itm = itm.substr(preproc_D.length());            
+        } else if (itm.substr(0, preproc_I.length()) == preproc_I) {
+            a = 1;
+            itm = itm.substr(preproc_U.length());            
+        } else if (itm.substr(0, preproc_U.length()) == preproc_U) {
+            a = 2;
+            itm = itm.substr(preproc_U.length());            
+        }
+        switch (a) {
+            case 0: {
+                auto sep = std::min(itm.find(' '), itm.length());
+                std::string key;
+                std::string value;
+                to_utf8(itm.data(), itm.data()+sep, std::back_inserter(key));
+                if (sep < itm.length()) ++sep;
+                to_utf8(itm.data()+sep, itm.data()+itm.length(), std::back_inserter(value));
+                preproc.define_symbol(key,value);
+                break;
+            } 
+            case 1: {
+                preproc.append_includes(workdir/itm);
+                break;
+            }
+            case 2: {
+                std::string value;
+                to_utf8(itm.begin(), itm.end(), std::back_inserter(value));
+                preproc.undef_symbol(value);
+                break;
+            }
+            default:break;
+        }
+        a = -1;
+    }
+
+    return preproc.run(workdir, file);
+}

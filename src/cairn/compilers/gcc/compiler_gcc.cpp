@@ -3,6 +3,7 @@
 #include "factory.hpp"
 #include "../../utils/log.hpp"
 #include "../../utils/utf_8.hpp"
+#include "../../gnu_compiler_setup.hpp"
 #include "module_type.hpp"
 #include <fstream>
 #include <memory>
@@ -33,35 +34,13 @@ Version CompilerGcc::get_gcc_version(Config &cfg) {
 }
 
 
-static std::vector<std::filesystem::path> extract_include_path(std::string text, const std::filesystem::path working_dir) {    
-    std::vector<std::filesystem::path> res;
-
-    std::string ln;
-
-    std::istringstream strm(std::move(text));
-    bool record = false;
-    while (!!strm) {
-        std::getline(strm, ln);
-        std::string_view lnw(ln);
-        while (!lnw.empty() && isspace(lnw.front())) lnw = lnw.substr(1);
-        while (!lnw.empty() && isspace(lnw.back())) lnw = lnw.substr(0,lnw.size()-1);
-        if (record) {
-            if (lnw == "End of search list.") break;
-            res.emplace_back((working_dir/lnw).lexically_normal());
-        } else if (lnw == "#include <...> search starts here:") {
-            record = true;
-        }
-    }
-    return res;
-}
-
-
 
 SourceScanner::Info CompilerGcc::scan(const OriginEnv &env, const std::filesystem::path &file) const
 {
-    auto pp = preprocess(env, file);
-    auto nfo = SourceScanner::scan_string(pp.first);
-    auto paths =  extract_include_path(pp.second, env.working_dir);
+    auto args = prepare_args(env,_config,'-');
+    auto preproc = _preproc;
+    auto nfo =  SourceScanner::scan_string(run_preprocess(preproc, args, env.working_dir, file));
+    auto paths =  preproc.get_include_paths();
     for (auto &s: nfo.required) {
         if (s.type == ModuleType::system_header) {
             for (const auto &x: paths) {
@@ -80,50 +59,6 @@ SourceScanner::Info CompilerGcc::scan(const OriginEnv &env, const std::filesyste
 }
 
 
-std::pair<std::string,std::string> CompilerGcc::preprocess(const OriginEnv &env,const std::filesystem::path &file) const {
-
-    auto args = prepare_args(env,_config,'-');
-
-    args.erase(std::remove_if(args.begin(), args.end(), [&,skip = false](const ArgumentString &s) mutable {
-        if (skip) {
-            skip = false;
-            return false;
-        }
-        auto f1 = std::find(all_preproc.begin(), all_preproc.end(), s);
-        if (f1 != all_preproc.end()) {
-            skip = true;
-            return false;
-        }
-        auto f2 = std::find_if(all_preproc.begin(), all_preproc.end(), [&](const ArgumentStringView &w) {
-            return s.starts_with(w);
-        });
-        return (f2 == all_preproc.end());
-    }), args.end());
-    append_arguments(args, {"-xc++", "-v", "-E", "{}"}, {path_arg(file)});
-
-
-    Process p = Process::spawn(_config.program_path, env.working_dir, args, Process::output|Process::error);
-
-    std::promise<std::string> errprom;
-    _helper.push([&]() noexcept {
-        try {
-            std::string err((std::istreambuf_iterator<char>(*p.stderr_stream)),
-                            std::istreambuf_iterator<char>());
-            errprom.set_value(std::move(err));
-        } catch (...) {
-            errprom.set_exception(std::current_exception());
-        }
-    });
-
-    std::string out((std::istreambuf_iterator<char>(*p.stdout_stream)),
-                     std::istreambuf_iterator<char>());
-
-    auto err =errprom.get_future().get();
-    if (p.waitpid_status()) {                
-        dump_failed_cmdline(_config, env.working_dir, args);
-    }
-    return {std::move(out),std::move(err)};
-}
 
 CompilerGcc::CompilerGcc(Config config):_config(std::move(config)) {
 
@@ -142,7 +77,9 @@ CompilerGcc::CompilerGcc(Config config):_config(std::move(config)) {
     if (_version < Version("14.0")) {
         throw std::runtime_error("GCC: version 14.0 or higher is required. Found: " + _version.to_string());
     }
-    _helper.start(1);
+    ThreadPool tp;
+    tp.start(1);
+    _preproc = initialize_preprocesor_using_gnu_compiler(_config.program_path, tp);
     
 }
 
