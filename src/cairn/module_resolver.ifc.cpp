@@ -8,6 +8,7 @@ public:
 
     struct Result {
         std::vector<std::filesystem::path> files;
+        std::vector<CompileTarget> targets;
         OriginEnv env;
     };
 

@@ -3,6 +3,7 @@
 #include "../../utils/arguments.hpp"
 #include "../../utils/version.hpp"
 #include "../../utils/thread_pool.hpp"
+#include "../../preprocess.hpp"
 #include "factory.hpp"
 #include <filesystem>
 #include <array>
@@ -28,7 +29,6 @@ public:
     virtual SourceScanner::Info scan(const OriginEnv &env, const std::filesystem::path &file) const override;
 
 
-    std::pair<std::string,std::string> preprocess(const OriginEnv &env, const std::filesystem::path &file) const;
 
     CompilerGcc(Config config);
 
@@ -57,13 +57,18 @@ public:
         preproc_D, preproc_I, preproc_U, preproc_define_macro, preproc_undefine_macro, preproc_include_directory
     });
 
+    virtual void update_link_command(CompileCommandsTable &cc,  
+            std::span<const std::filesystem::path> objects, const std::filesystem::path &output) const override;
+
+
 protected:
     Config _config;
     std::filesystem::path _module_cache;
     std::filesystem::path _object_cache;
     std::filesystem::path _module_mapper;
-    Version _version;
-    mutable ThreadPool _helper;
+    Version _version;    
+    StupidPreprocessor _preproc;
+
     
 
     static Version get_gcc_version(Config &cfg);
@@ -73,5 +78,6 @@ protected:
         std::span<const SourceDef> modules,
         CompileResult &result) const;
 
+    std::filesystem::path create_adhoc_mapper(const SourceDef &src) const;
 
 };

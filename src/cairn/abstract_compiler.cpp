@@ -116,6 +116,8 @@ public:
      */
     virtual void update_compile_commands(CompileCommandsTable &cc,  const OriginEnv &env, 
                 const SourceDef &src, std::span<const SourceDef> modules) const = 0;
+    virtual void update_link_command(CompileCommandsTable &cc,  
+                std::span<const std::filesystem::path> objects, const std::filesystem::path &output) const = 0;
 
     ///Perform scan operation
     /**
@@ -150,9 +152,9 @@ public:
         std::filesystem::create_directories(file_path.parent_path());
     }
 
-    static int invoke(const Config &cfg, 
+    int invoke(const Config &cfg, 
         const std::filesystem::path &workdir, 
-        std::span<const ArgumentString> arguments);
+        std::span<const ArgumentString> arguments) const;
 
     static std::vector<ArgumentString> prepare_args(const OriginEnv &env, const Config &config, char switch_char);
 
@@ -163,11 +165,15 @@ public:
 
 };
 
+ void dry_run(bool enabled) {
+        _disable_build = enabled;
+ }
 
 int AbstractCompiler::invoke(const Config &cfg, 
     const std::filesystem::path &workdir, 
-    std::span<const ArgumentString> arguments)
+    std::span<const ArgumentString> arguments) const
 {
+    if (_disable_build) return 0;
     Process p = Process::spawn(cfg.program_path, workdir, arguments, Process::no_streams);
     return p.waitpid_status();
 
@@ -244,4 +250,7 @@ std::filesystem::path AbstractCompiler::find_in_path(std::filesystem::path name,
         throw std::runtime_error("Unable to find executable: "+name.string());
     }
     return name;
-}
+protected:
+    bool _disable_build = false;
+};
+

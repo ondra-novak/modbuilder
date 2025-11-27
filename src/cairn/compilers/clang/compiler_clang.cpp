@@ -45,9 +45,6 @@ public:
 
     virtual SourceScanner::Info scan(const OriginEnv &env, const std::filesystem::path &file) const override;
 
-
-    std::string preprocess(const OriginEnv &env, const std::filesystem::path &file) const;
-
     CompilerClang(Config config);
 
     virtual bool initialize_build_system(BuildSystemConfig ) override {
@@ -68,6 +65,8 @@ public:
 
     static constexpr auto stdcpp=ArgumentConstant("-std=c++");
 
+     virtual void update_link_command(CompileCommandsTable &cc,  
+                std::span<const std::filesystem::path> objects, const std::filesystem::path &output) const override; 
     //preprocessor options
     static constexpr auto preproc_D = ArgumentConstant("-D");
     static constexpr auto preproc_U = ArgumentConstant("-U");
@@ -87,7 +86,7 @@ protected:
     std::filesystem::path _module_cache;
     std::filesystem::path _object_cache;
     Version _version;
-    
+    StupidPreprocessor _preproc;
   
 
     std::filesystem::path get_bmi_path(const SourceDef &src) const {
@@ -112,6 +111,7 @@ protected:
 
     static Version get_clang_version(Config &cfg);
 };
+
 
 Version CompilerClang::get_clang_version(Config &cfg) {
     std::vector<ArgumentString> args;    
@@ -152,7 +152,12 @@ CompilerClang::CompilerClang(Config config) :_config((std::move(config))) {
     if (_version < Version("18.0")) {
         throw std::runtime_error("CLANG: version 18.0 or higher is required. Found: " + _version.to_string());
     }
-    }
+
+    ThreadPool tp;
+    tp.start(1);
+    _preproc = initialize_preprocesor_using_gnu_compiler(_config.program_path, tp);
+
+}
 
 void CompilerClang::prepare_for_build() {
     std::filesystem::create_directories(_module_cache);
@@ -192,7 +197,9 @@ int CompilerClang::link(std::span<const std::filesystem::path> objects, const st
 
 SourceScanner::Info CompilerClang::scan(const OriginEnv &env, const std::filesystem::path &file) const
 {
-    auto info =  SourceScanner::scan_string(preprocess(env, file));
+    auto args = prepare_args(env,_config,'-');
+    auto preproc = _preproc;
+    auto info =  SourceScanner::scan_string(run_preprocess(preproc, args, env.working_dir, file));
     for (auto &s: info.required) {
         if (s.type == ModuleType::user_header) {
             s.name = (env.working_dir/s.name).lexically_normal().string();
@@ -201,38 +208,7 @@ SourceScanner::Info CompilerClang::scan(const OriginEnv &env, const std::filesys
     return info;
 }
 
-std::string CompilerClang::preprocess(const OriginEnv &env,const std::filesystem::path &file) const {
 
-    auto args = prepare_args(env,_config,'-');
-
-    args.erase(std::remove_if(args.begin(), args.end(), [&,skip = false](const ArgumentString &s) mutable {
-        if (skip) {
-            skip = false;
-            return false;
-        }
-        auto f1 = std::find(all_preproc.begin(), all_preproc.end(), s);
-        if (f1 != all_preproc.end()) {
-            skip = true;
-            return false;
-        }
-        auto f2 = std::find_if(all_preproc.begin(), all_preproc.end(), [&](const ArgumentStringView &w) {
-            return s.starts_with(w);
-        });
-        return (f2 == all_preproc.end());
-    }), args.end());
-    append_arguments(args, {"-xc++", "-E", "{}"}, {path_arg(file)});
-
-
-    Process p = Process::spawn(_config.program_path, env.working_dir, args, Process::output);
-
-    std::string out((std::istreambuf_iterator<char>(*p.stdout_stream)),
-                     std::istreambuf_iterator<char>());
-
-    if (p.waitpid_status()) {
-        dump_failed_cmdline(_config, env.working_dir, args);
-    }
-    return out;
-}
 
 std::vector<ArgumentString> CompilerClang::build_arguments(bool precompile_stage,  const OriginEnv &env,
         const SourceDef &source,
@@ -256,7 +232,7 @@ std::vector<ArgumentString> CompilerClang::build_arguments(bool precompile_stage
         if (m.type != ModuleType::system_header 
             && m.type != ModuleType::user_header
             && m.path.parent_path() == _module_cache) {
-                break;       //skip modules in cache, not need specify
+               continue;
             }
         append_arguments(args, {"-fmodule-file={}"}, {path_arg(m.path)});
         disable_experimental_warning = true;    
@@ -355,3 +331,11 @@ CompilerClang::SourceStatus CompilerClang::source_status(ModuleType t, const std
 std::unique_ptr<AbstractCompiler> create_compiler_clang(AbstractCompiler::Config cfg) {
     return std::make_unique<CompilerClang>(std::move(cfg));
 }
+
+void CompilerClang::update_link_command(CompileCommandsTable &cc,  
+        std::span<const std::filesystem::path> objects, const std::filesystem::path &output) const {
+        std::vector<ArgumentString> args = _config.link_options;
+        for (const auto &x: objects) args.push_back(path_arg(x));
+        append_arguments(args, {"-o","{}"}, {path_arg(output)});
+        cc.update(cc.record(_config.working_directory, {}, _config.program_path, std::move(args), output));
+    }

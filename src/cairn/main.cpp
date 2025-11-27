@@ -35,13 +35,11 @@ static constexpr auto clang_type_1 = ArgumentConstant("clang");
 static constexpr auto clang_type_2 = ArgumentConstant("clang++");
 static constexpr auto clang_type_3 = ArgumentConstant("llvm");
 static constexpr std::array<ArgumentStringView,3> clang_types = {clang_type_1, clang_type_2, clang_type_3};
-#ifdef _WIN32
 static constexpr auto msvc_type_1 = ArgumentConstant("msvc");
 static constexpr auto msvc_type_2 = ArgumentConstant("msc");
 static constexpr auto msvc_type_3 = ArgumentConstant("cl");
 static constexpr auto msvc_type_4 = ArgumentConstant("cl.exe");
 static constexpr std::array<ArgumentStringView,4> msvc_types = {msvc_type_1, msvc_type_2, msvc_type_3, msvc_type_4};
-#endif
 
 static std::unique_ptr<AbstractCompiler> create_compiler(const AppSettings &settings) {
     auto contains = [](ArgumentStringView what, const auto &where) {
@@ -55,10 +53,8 @@ static std::unique_ptr<AbstractCompiler> create_compiler(const AppSettings &sett
             factory = &create_compiler_gcc;
         } else if (contains(settings.compiler_type, clang_types)) {
             factory = &create_compiler_clang;
-#ifdef _WIN3
         } else if (contains(settings.compiler_type, msvc_types)) {
             factory = &create_compiler_msvc;
-#endif            
         } else {
             return {};
         }
@@ -68,12 +64,9 @@ static std::unique_ptr<AbstractCompiler> create_compiler(const AppSettings &sett
         std::transform(exec_name.begin(), exec_name.end(), exec_name.begin(),
                [](unsigned char c){ return static_cast<char>(std::tolower(c)); });
 
-#ifdef _WIN3
         if (exec_name.rfind("cl.exe") != exec_name.npos) {
             factory = &create_compiler_msvc;            
-        } else
-#endif  
-        if (exec_name.rfind("clang") != exec_name.npos) {
+        } else if (exec_name.rfind("clang") != exec_name.npos) {
             factory = &create_compiler_clang;            
         } else if (exec_name.rfind("gcc") != exec_name.npos || exec_name.rfind("g++") != exec_name.npos) {
             factory = &create_compiler_gcc;
@@ -191,6 +184,70 @@ static void list_modules(const ModuleDatabase &db, const std::vector<AbstractCom
 
 }
 
+static void generate_makefile(const BuildPlan<ModuleDatabase::CompileAction> &plan,            
+            std::filesystem::path output            
+        ) {
+    auto cur_dir = output.parent_path();;
+    std::ofstream mk(output, std::ios::out|std::ios::trunc);
+    std::size_t idx = 0;
+    std::unordered_set<unsigned int> all_targets;
+    mk << ".PHONY: all";
+    for (idx = 0; idx < plan.get_plan().size(); ++idx) {
+        mk << " t_" << idx;
+        all_targets.insert(static_cast<unsigned int>(idx));
+    }    
+    for (idx = 0; idx < plan.get_plan().size(); ++idx) {
+        for (const auto &x: plan.get_plan()[idx].dependencies) {
+            all_targets.erase(static_cast<unsigned int>(x));
+        }
+    }
+    
+    std::unordered_set<std::filesystem::path> workdirs;
+
+    mk << "\nall:";
+    for (auto &x: all_targets) {
+        mk << " t_"<< x;
+    }
+    mk << "\n";
+    mk << "\n";
+    idx = 0;
+    ArgumentString srchpath = path_arg((cur_dir/".").lexically_normal());
+    auto remove_abs_path = [&](ArgumentString arg) {
+        auto np = arg.find(srchpath);
+        while (np != arg.npos) {
+            arg = arg.substr(0,np) + arg.substr(np+srchpath.size());
+            np = arg.find(srchpath);
+        }
+        return arg;
+    };
+    for (const auto &p:plan) {
+        CompileCommandsTable cctmp;
+        p.action.add_to_cctable(cctmp);
+        mk << "t_" << idx << ":";
+        for (auto &d: p.dependencies) {
+            mk << " t_" << d;
+        }
+        mk << "| workdir \n";
+        for (auto &[k,v]: cctmp._table) {
+            
+            ArgumentString arg = remove_abs_path(v.command);
+            mk << "\t";
+            to_utf8(arg.begin(), arg.end(), std::ostreambuf_iterator<char>(mk));
+            mk << "\n";
+            workdirs.insert(v.output.parent_path());
+        }
+        ++idx;
+        mk << "\n";
+    }
+    mk << "\nworkdir:\n";
+    for (auto &w: workdirs) {
+        auto p = remove_abs_path(path_arg(w));
+        mk << "\tmkdir -p ";
+        to_utf8(p.begin(), p.end(), std::ostreambuf_iterator<char>(mk));
+        mk << "\n";
+    }
+}
+
 
 
 int tmain(int argc, ArgumentString::value_type *argv[]) {
@@ -244,20 +301,38 @@ int tmain(int argc, ArgumentString::value_type *argv[]) {
         POriginEnv default_env = std::make_shared<OriginEnv>(OriginEnv::default_env());
 
         db.check_for_modifications(*compiler);
+        auto targets = settings.targets;
         if (!settings.env_file_json.empty()) {
-            db.add_origin(settings.env_file_json, *compiler);
+            auto r = ModuleResolver::loadMap(settings.env_file_json);
+            db.add_origin(r, *compiler);
+            if (!r.targets.empty() && targets.empty()) { 
+                targets = r.targets;
+            }
         }
-        for (const auto &ts: settings.targets) {
+        for (const auto &ts: targets) {
             db.add_file( ts.source, *compiler);
         }
+
+        if (!settings.generate_makefile.empty()) {
+            db.recompile_all();
+            auto mplan = db.create_build_plan(*compiler, *default_env, 
+                    targets, false,  !settings.lib_arguments.empty());
+            compiler->dry_run(true);
+            ThreadPool tp;
+            tp.start(1);
+            Builder::build(tp, mplan, true).get();
+            generate_makefile(mplan, settings.generate_makefile);            
+            return 0;
+        }
+
 
         if (settings.recompile || settings.list) db.recompile_all();
         else db.check_for_recompile();
 
         auto plan = db.create_build_plan(*compiler, *default_env, 
-                    settings.targets, 
-                    settings.recompile, 
-                    !settings.lib_arguments.empty());
+                    targets, false,  !settings.lib_arguments.empty());
+
+    
                 
         std::vector<AbstractCompiler::ModuleMapping> module_map;
         if (settings.list) {
@@ -268,6 +343,8 @@ int tmain(int argc, ArgumentString::value_type *argv[]) {
 
 
         auto threads = settings.threads;
+        if (threads == 0) threads = std::thread::hardware_concurrency();
+
         compiler->prepare_for_build();
         bool use_build_system = compiler->initialize_build_system({threads, settings.keep_going});
         if (use_build_system) threads = 1;

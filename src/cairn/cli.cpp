@@ -25,6 +25,7 @@ export struct AppSettings {
     std::vector<ArgumentString> lib_arguments =  {};
     std::vector<CompileTarget> targets = {};
     std::filesystem::path scan_file = {};
+    std::filesystem::path generate_makefile = {};
     unsigned int threads = 1;
     Mode mode = compile_and_link;
     bool show_help = false;
@@ -72,6 +73,8 @@ Switches
 -s        output only errors (silent)
 -d        debug mode (output everyting)
 -l --list don't compile, just output list of all referenced modules and headers
+-M<file>  don't compile, create makefile containing all build steps needs to 
+          create targets (works well with clang++ v18+) 
 
 outputN   specifies path/name of output executable
 fileN.cpp specifies path/name of main file for this executable
@@ -120,6 +123,9 @@ prefixes:       mapping prefix->paths
         -
 work_dir: path  specifies working directory (default: .)
                 defines a base path for all relative paths
+
+targets:                allows to define targets, they are used only 
+    name:source_path    when this file is specified as -f switch
 
 If modules.yaml is missing, then all *.cpp files in current directory are scanned for
 modules. All subdirectories used for mapping, wher name of directory is used as prefix
@@ -179,6 +185,7 @@ bool parse_cmdline(AppSettings &settings, CliReader<ArgumentString::value_type> 
             case 'h': settings.show_help = true;break;
             case 'k': settings.keep_going = true;break;
             case 'l': settings.list = true;break;
+            case 'M': settings.generate_makefile = (curdir/cli.text()).lexically_normal();break;
         }
     }
     {

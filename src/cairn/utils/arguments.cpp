@@ -120,7 +120,6 @@ struct CliReader {
     ///read next item as a number
     int number() {
         int n = 0;
-        bool ng = false;
         const T *iter;
         if (nx && *nx) {
             iter = nx;
@@ -133,17 +132,12 @@ struct CliReader {
             return 0;
         }
 
-        if (*iter == '-') {
-            ng = true;
-            ++iter;
-        }
         while (*iter >= '0' && *iter <= '9') {
             unsigned char c = static_cast<unsigned char>(*iter);
             n = n * 10 + (c - '0');
             ++iter;
         }
         if (nx) nx = iter;
-        if (ng) n = -n;
         return n;
     }
     void put_back() {

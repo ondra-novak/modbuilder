@@ -1,18 +1,27 @@
+#include "abstract_compiler.hpp"
+#include "utils/env.hpp"
+#ifdef _WIN32
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+#include <ShlObj.h>
+#undef interface
+#endif
+
+
 #include "factory.hpp"
 
-#ifdef _WIN32
+
 #include "compiler_msvc.hpp"
 #include "../../utils/log.hpp"
 #include "../../utils/utf_8.hpp"
 #include "../../utils/process.hpp"
 #include "../../utils/serializer.hpp"
 #include "../../utils/serialization_rules.hpp" // IWYU pragma: keep.
+#include "../../compile_commands_supp.hpp"
 #include <future>
-
 #include <stdexcept>
 #include <fstream>
-#include <ShlObj.h>
-#undef interface
+
 
 static constexpr auto preproc_D = ArgumentConstant("/D");
 static constexpr auto preproc_U = ArgumentConstant("/U");
@@ -24,6 +33,7 @@ static constexpr auto all_preproc = std::array<ArgumentStringView, 4>({
 });
 
 
+#ifdef _WIN32
 static std::filesystem::path findVsWhere()
 {
     wchar_t programFilesX86[MAX_PATH];
@@ -34,6 +44,13 @@ static std::filesystem::path findVsWhere()
 
     return p;
 }
+#else 
+static std::filesystem::path findVsWhere() {
+    auto env = SystemEnvironment::current();
+    return AbstractCompiler::find_in_path("vswhere.exe",env);
+}
+#endif
+
 
 CompilerMSVC::VariantSpec CompilerMSVC::parse_variant_spec(std::filesystem::path compiler_path) {
     auto fname = compiler_path.filename().string();
@@ -106,6 +123,9 @@ CompilerMSVC::CompilerMSVC(Config config): _config(std::move(config)) {
     _config.program_path = find_in_path(_config.program_path, _env_cache.env);
     _helper.start(1);
 
+    std::filesystem::path detect_macros = _config.working_directory/"defines.txt";
+    create_macro_summary_file(detect_macros);
+
 }
 
 void CompilerMSVC::prepare_for_build()
@@ -157,6 +177,14 @@ int CompilerMSVC::link(std::span<const std::filesystem::path> objects, const std
     }
     return r;
 }
+void CompilerMSVC::update_link_command(CompileCommandsTable &cc,  
+        std::span<const std::filesystem::path> objects, const std::filesystem::path &output) const {
+        std::vector<ArgumentString> args = _config.link_options;
+        append_arguments(args, {"/nologo","/Fe{}"}, {path_arg(output)});
+        for (const auto &x: objects) args.push_back(path_arg(x));
+        cc.update(cc.record(_config.working_directory, {}, _config.program_path, std::move(args), output));
+    }
+
 
 SourceScanner::Info CompilerMSVC::scan(const OriginEnv &env, const std::filesystem::path &file) const
 {
@@ -218,6 +246,7 @@ void CompilerMSVC::update_compile_commands(CompileCommandsTable &cc,  const Orig
     auto out = res.interface.empty()?std::move(res.object):std::move(res.interface);
     cc.update(cc.record(env.working_dir, src.path, _config.program_path, std::move(args), std::move(out)));
 }
+
 
 bool CompilerMSVC::initialize_build_system(BuildSystemConfig)
 {
@@ -378,6 +407,8 @@ std::string CompilerMSVC::map_module_name(const std::string_view &name) {
 int CompilerMSVC::invoke(const std::filesystem::path &workdir, 
     std::span<const ArgumentString> arguments) const
 {
+    if (_disable_build) return 0;
+
     Process p = Process::spawn(_config.program_path, workdir, arguments, Process::output, _env_cache.env);
     std::string dummy(std::istreambuf_iterator<char>(*p.stdout_stream), std::istreambuf_iterator<char>());
     int r =  p.waitpid_status();
@@ -399,9 +430,165 @@ std::unique_ptr<AbstractCompiler> create_compiler_msvc( AbstractCompiler::Config
     return std::make_unique<CompilerMSVC>(std::move(config));
 }
 
-#else 
-std::unique_ptr<AbstractCompiler> create_compiler_msvc( AbstractCompiler::Config ) {
-    throw std::runtime_error("Unsupported on this platform");
+constexpr std::string_view all_compilers_macros[] = {
+    "__cplusplus",
+    "__DATE__",
+    "__FILE__",
+    "__LINE__",
+    "__STDC__",
+    "__STDC_HOSTED__",
+    "__STDC_NO_ATOMICS__",
+    "__STDC_NO_COMPLEX__",
+    "__STDC_NO_THREADS__",
+    "__STDC_NO_VLA__",
+    "__STDC_VERSION__",
+    "__STDCPP_DEFAULT_NEW_ALIGNMENT__",
+    "__STDCPP_THREADS__",
+    "__TIME__",
+    "__ARM_ARCH",
+    "__ATOM__",
+    "__AVX__",
+    "__AVX2__",
+    "__AVX512BW__",
+    "__AVX512CD__",
+    "__AVX512DQ__",
+    "__AVX512F__",
+    "__AVX512VL__",
+    "__AVX10_VER__",
+    "_CHAR_UNSIGNED",
+    "__CLR_VER",
+    "_CONTROL_FLOW_GUARD",
+    "__COUNTER__",
+    "__cplusplus_winrt",
+    "_CPPRTTI",
+    "_CPPUNWIND",
+    "_DEBUG",
+    "_DLL",
+    "__FUNCDNAME__",
+    "__FUNCSIG__",
+    "__FUNCTION__",
+    "_INTEGRAL_MAX_BITS",
+    "__INTELLISENSE__",
+    "_ISO_VOLATILE",
+    "_KERNEL_MODE",
+    "_M_AMD64",
+    "_M_ARM",
+    "_M_ARM_ARMV7VE",
+    "_M_ARM_FP",
+    "_M_ARM64",
+    "_M_ARM64EC",
+    "_M_CEE",
+    "_M_CEE_PURE",
+    "_M_CEE_SAFE",
+    "_M_FP_CONTRACT",
+    "_M_FP_EXCEPT",
+    "_M_FP_FAST",
+    "_M_FP_PRECISE",
+    "_M_FP_STRICT",
+    "_M_IX86",
+    "_M_IX86_FP",
+    "_M_X64",
+    "_MANAGED",
+    "_MSC_BUILD",
+    "_MSC_EXTENSIONS",
+    "_MSC_FULL_VER",
+    "_MSC_VER",
+    "_MSVC_LANG",
+    "__MSVC_RUNTIME_CHECKS",
+    "_MSVC_TRADITIONAL",
+    "_MT",
+    "_NATIVE_WCHAR_T_DEFINED",
+    "_OPENMP",
+    "_PREFAST_",
+    "__SANITIZE_ADDRESS__",
+    "__TIMESTAMP__",
+    "_VC_NODEFAULTLIB",
+    "_WCHAR_T_DEFINED",
+    "_WIN32",
+    "_WIN64",
+    "_WINRT_DLL",
+    "__cpp_aggregate_bases",
+    "__cpp_aggregate_nsdmi",
+    "__cpp_aggregate_paren_init",
+    "__cpp_alias_templates",
+    "__cpp_aligned_new",
+    "__cpp_attributes",
+    "__cpp_auto_cast",
+    "__cpp_binary_literals",
+    "__cpp_capture_star_this",
+    "__cpp_char8_t",
+    "__cpp_concepts",
+    "__cpp_conditional_explicit",
+    "__cpp_consteval",
+    "__cpp_constexpr",
+    "__cpp_constexpr_dynamic_alloc",
+    "__cpp_constexpr_exceptions",
+    "__cpp_constexpr_in_decltype",
+    "__cpp_constinit",
+    "__cpp_contracts",
+    "__cpp_decltype",
+    "__cpp_decltype_auto",
+    "__cpp_deduction_guides",
+    "__cpp_delegating_constructors",
+    "__cpp_deleted_function",
+    "__cpp_designated_initializers",
+    "__cpp_enumerator_attributes",
+    "__cpp_explicit_this_parameter",
+    "__cpp_fold_expressions",
+    "__cpp_generic_lambdas",
+    "__cpp_guaranteed_copy_elision",
+    "__cpp_hex_float",
+    "__cpp_if_consteval",
+    "__cpp_if_constexpr",
+    "__cpp_impl_coroutine",
+    "__cpp_impl_destroying_delete",
+    "__cpp_impl_three_way_comparison",
+    "__cpp_implicit_move",
+    "__cpp_inheriting_constructors",
+    "__cpp_init_captures",
+    "__cpp_initializer_lists",
+    "__cpp_inline_variables",
+    "__cpp_lambdas",
+    "__cpp_modules",
+    "__cpp_multidimensional_subscript",
+    "__cpp_named_character_escapes",
+    "__cpp_namespace_attributes",
+    "__cpp_noexcept_function_type",
+    "__cpp_nontype_template_args",
+    "__cpp_nontype_template_parameter_auto",
+    "__cpp_nsdmi",
+    "__cpp_pack_indexing",
+    "__cpp_placeholder_variables",
+    "__cpp_pp_embed",
+    "__cpp_range_based_for",
+    "__cpp_raw_strings",
+    "__cpp_ref_qualifiers",
+    "__cpp_return_type_deduction",
+    "__cpp_rvalue_references",
+    "__cpp_size_t_suffix",
+    "__cpp_sized_deallocation",
+    "__cpp_static_assert",
+    "__cpp_static_call_operator",
+    "__cpp_structured_bindings",
+    "__cpp_template_parameters",
+    "__cpp_template_template_args",
+    "__cpp_threadsafe_static_init",
+    "__cpp_trivial_relocatability",
+    "__cpp_trivial_union",
+    "__cpp_unicode_characters",
+    "__cpp_unicode_literals",
+    "__cpp_user_defined_literals",
+    "__cpp_using_enum",
+    "__cpp_variable_templates",
+    "__cpp_variadic_friend",
+    "__cpp_variadic_templates",
+    "__cpp_variadic_using"
+ };
+
+void CompilerMSVC::create_macro_summary_file(const std::filesystem::path &target) {
+    std::ofstream out(target, std::ios::out|std::ios::trunc);
+    for (auto &x: all_compilers_macros) {
+        out << "#ifdef " << x << "\n" << "\"" << x << "\" {" << x << "}\n#endif\n";
+    }
 }
 
-#endif
