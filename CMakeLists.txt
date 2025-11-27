@@ -37,9 +37,9 @@ include_directories(BEFORE src/json/src)
 
 add_custom_target(cairn ALL
     COMMAND /home/ondra/vscode/modbuilder/build/bin/cairn 
-        -j16 -ccompile_commands.json
+        -j16 -d -R -ccompile_commands.json
         -b${CMAKE_BINARY_DIR}
-        -ccompile_commands.json 
+        -c${CMAKE_CXX_CURRENT_LIST_DIR}compile_commands.json 
         build/cairn=src/cairn/main.cpp 
         ${CMAKE_CXX_COMPILER} -std=c++${CMAKE_CXX_STANDARD} -g3 -O0 ${CMAKE_CXX_FLAGS}
     WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR})

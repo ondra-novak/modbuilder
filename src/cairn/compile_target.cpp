@@ -5,5 +5,5 @@ import <filesystem>;
 
 export struct CompileTarget {
     std::filesystem::path target;
-    std::filesystem::path source;
+    std::filesystem::path source;    
 };
