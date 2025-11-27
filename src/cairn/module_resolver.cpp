@@ -8,7 +8,7 @@ import <string_view>;
 import <system_error>;
 import cairn.utils.hash;
 import cairn.utils.log;
-import cairn.utils.vendors;
+import cairn.utils.fkyaml;
 import cairn.utils.utf8;
 
 
