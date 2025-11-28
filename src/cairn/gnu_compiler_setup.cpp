@@ -70,12 +70,12 @@ export inline StupidPreprocessor initialize_preprocesor_using_gnu_compiler(std::
 }   
 
 //preprocessor options
-static constexpr auto preproc_D = ArgumentConstant("-D");
-static constexpr auto preproc_U = ArgumentConstant("-U");
-static constexpr auto preproc_I = ArgumentConstant("-I");
-static constexpr auto preproc_define_macro = ArgumentConstant("--define-macro");
-static constexpr auto preproc_undefine_macro = ArgumentConstant("--undefine-macro");
-static constexpr auto preproc_include_directory = ArgumentConstant("--include-directory");
+constexpr auto preproc_D = ArgumentConstant("-D");
+constexpr auto preproc_U = ArgumentConstant("-U");
+constexpr auto preproc_I = ArgumentConstant("-I");
+constexpr auto preproc_define_macro = ArgumentConstant("--define-macro");
+constexpr auto preproc_undefine_macro = ArgumentConstant("--undefine-macro");
+constexpr auto preproc_include_directory = ArgumentConstant("--include-directory");
 
 
 

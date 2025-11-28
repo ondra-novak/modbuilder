@@ -6,8 +6,7 @@ files:
   - process.cpp
   - env.cpp
   - log.cpp
-  - log.ifc.cpp
-  - fkyaml.cpp
+  - log.ifc.cpp  
   - hash.cpp
   - utf_8.cpp
   - thread_pool.cpp

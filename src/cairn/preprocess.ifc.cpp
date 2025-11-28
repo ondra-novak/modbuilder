@@ -8,6 +8,7 @@ import <optional>;
 import <unordered_map>;
 import <unordered_set>;
 import <algorithm>;
+import <array>;
 
 
 export class StupidPreprocessor {

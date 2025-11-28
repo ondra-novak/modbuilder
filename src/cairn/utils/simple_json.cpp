@@ -10,6 +10,7 @@ import <format>;
 import <optional>;
 import <exception>;
 import <charconv>;
+import <algorithm>;
 
 export class Json ;
 

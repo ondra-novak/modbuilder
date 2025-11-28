@@ -1,3 +1,6 @@
+module;
+#include <fkyaml.hpp>
+
 module cairn.module_resolver;
 import <cctype>;
 import <filesystem>;
@@ -8,7 +11,6 @@ import <string_view>;
 import <system_error>;
 import cairn.utils.hash;
 import cairn.utils.log;
-import cairn.utils.fkyaml;
 import cairn.utils.utf8;
 
 

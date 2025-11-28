@@ -19,5 +19,8 @@ files
   - gnu_compiler_setup.cpp
 prefixes:
   cairn.utils: utils
-  cairn.compiler: compilers
+  cairn.compiler: compilers\
+includes:
+  - utils
+
 

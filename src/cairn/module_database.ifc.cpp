@@ -21,6 +21,7 @@ import <unordered_map>;
 import <vector>;
 import <map>;
 import <variant>;
+import <span>;
 
 
 export class ModuleDatabase {
