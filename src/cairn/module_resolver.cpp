@@ -61,79 +61,82 @@ ModuleResolver::Result scan_directory(const std::filesystem::path &directory) {
     return out;
 }
 ModuleResolver::Result process_yaml(const std::filesystem::path &yaml_file) {
-    ModuleResolver::Result result;    
-    result.env.config_file = yaml_file;
-    result.env.working_dir = yaml_file.parent_path();
-    
-    std::ifstream f(yaml_file);
-    if (!f) throw std::runtime_error("Can't open YAML file:" + yaml_file.string());
-    fkyaml::node root = fkyaml::node::deserialize(f);
+    try {
+        ModuleResolver::Result result;    
+        result.env.config_file = yaml_file;
+        result.env.working_dir = yaml_file.parent_path();
+        
+        std::ifstream f(yaml_file);
+        if (!f) throw std::runtime_error("Can't open YAML file:" + yaml_file.string());
+        fkyaml::node root = fkyaml::node::deserialize(f);
 
-    auto files = root["files"];
-    auto includes = root["includes"];
-    auto options = root["options"];
-    auto prefixes = root["prefixes"];
-    auto work_dir = root["work_dir"];
-    auto targets = root["targets"];
+        auto files = root["files"];
+        auto includes = root["includes"];
+        auto options = root["options"];
+        auto prefixes = root["prefixes"];
+        auto work_dir = root["work_dir"];
+        auto targets = root["targets"];
 
-    if (!work_dir.is_null()) {
-        if (!work_dir.is_string()) throw std::runtime_error("`work_dir` must be a path");
-        result.env.working_dir = (result.env.working_dir/u8_from_string(work_dir.as_str())).lexically_normal();        
-    }
-    const auto &base = result.env.working_dir;
-
-    if (!files.is_null()) {
-        if (!files.is_sequence()) throw std::runtime_error("`includes` must be a sequence");
-        for ( auto &x:files.as_seq()) {
-            result.files.push_back((base/u8_from_string(x.as_str())).lexically_normal());
+        if (!work_dir.is_null()) {
+            if (!work_dir.is_string()) throw std::runtime_error("`work_dir` must be a path");
+            result.env.working_dir = (result.env.working_dir/u8_from_string(work_dir.as_str())).lexically_normal();        
         }
-    } else {
-        auto r = scan_directory(base);
-        result.files = std::move(r.files);
-    }
+        const auto &base = result.env.working_dir;
 
-    if (!includes.is_null()) {
-        if (!includes.is_sequence()) throw std::runtime_error("`includes` must be a sequence");
-        for (auto &x: includes.as_seq()) {
-            result.env.includes.push_back((base/u8_from_string(x.as_str())).lexically_normal());
-        }
-    }
-
-    if (!prefixes.is_null()) {
-        if (!prefixes.is_mapping()) throw std::runtime_error("`prefixes` must be a key-value mapping");
-        for ( auto &[k,v]: prefixes.as_map()) {            
-            ModuleMapItem mitm{ k.as_str(), {}};
-            if (v.is_sequence()) {
-                for (auto &x: v.as_seq()) {
-                    mitm.paths.push_back((base/u8_from_string(x.as_str())).lexically_normal());
-                }
-            } else {
-                mitm.paths.push_back((base/u8_from_string(v.as_str())).lexically_normal());
-            }
-            result.env.maps.push_back(mitm);
-        }
-    }
-
-    if (!options.is_null()) {
-        if (!options.is_sequence()) throw std::runtime_error("`options` must be a sequence");
+        if (!files.is_null()) {
+            if (!files.is_sequence()) throw std::runtime_error("`includes` must be a sequence");
             for ( auto &x:files.as_seq()) {
-                result.files.push_back(x.as_str());
+                result.files.push_back((base/u8_from_string(x.as_str())).lexically_normal());
             }
-    }
-
-    if (!targets.is_null()) {
-        if (!targets.is_mapping()) throw std::runtime_error("`targets` must be a key-value mapping");
-        for (auto &[k, v]: targets.as_map()) {
-            result.targets.push_back({
-                (base/u8_from_string(k.as_str())).lexically_normal(),
-                (base/u8_from_string(v.as_str())).lexically_normal()
-            });
+        } else {
+            auto r = scan_directory(base);
+            result.files = std::move(r.files);
         }
-    }
 
-    calculate_hash(result);
-    return result;
-    
+        if (!includes.is_null()) {
+            if (!includes.is_sequence()) throw std::runtime_error("`includes` must be a sequence");
+            for (auto &x: includes.as_seq()) {
+                result.env.includes.push_back((base/u8_from_string(x.as_str())).lexically_normal());
+            }
+        }
+
+        if (!prefixes.is_null()) {
+            if (!prefixes.is_mapping()) throw std::runtime_error("`prefixes` must be a key-value mapping");
+            for ( auto &[k,v]: prefixes.as_map()) {            
+                ModuleMapItem mitm{ k.as_str(), {}};
+                if (v.is_sequence()) {
+                    for (auto &x: v.as_seq()) {
+                        mitm.paths.push_back((base/u8_from_string(x.as_str())).lexically_normal());
+                    }
+                } else {
+                    mitm.paths.push_back((base/u8_from_string(v.as_str())).lexically_normal());
+                }
+                result.env.maps.push_back(mitm);
+            }
+        }
+
+        if (!options.is_null()) {
+            if (!options.is_sequence()) throw std::runtime_error("`options` must be a sequence");
+                for ( auto &x:files.as_seq()) {
+                    result.files.push_back(x.as_str());
+                }
+        }
+
+        if (!targets.is_null()) {
+            if (!targets.is_mapping()) throw std::runtime_error("`targets` must be a key-value mapping");
+            for (auto &[k, v]: targets.as_map()) {
+                result.targets.push_back({
+                    (base/u8_from_string(k.as_str())).lexically_normal(),
+                    (base/u8_from_string(v.as_str())).lexically_normal()
+                });
+            }
+        }
+
+        calculate_hash(result);
+        return result;
+    } catch (std::exception &e) {
+        throw std::runtime_error("Failed to parse: "+yaml_file.string()+": " + e.what());
+    }
 }
 
 
