@@ -1,6 +1,3 @@
-module;
-#include <filesystem> //msvc requires
-
 module cairn.module_database;
 
 import cairn.module_type;

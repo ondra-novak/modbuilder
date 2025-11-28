@@ -1,3 +1,8 @@
+#ifdef _MSC_VER
+module;
+#include <filesystem> //msvc requires
+#endif 
+
 export module cairn.abstract_compiler;
 
 import cairn.module_type;
