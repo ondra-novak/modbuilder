@@ -323,7 +323,7 @@ protected:
                             codepoint = decodeUtf16UnknownOrder(codepoint, surg);
                             surg = 0;
                         } else {
-                            surg = codepoint;
+                            surg = static_cast<int>(codepoint);
                         }
                     }
                     char32_t cp = static_cast<char32_t>(codepoint);

@@ -2,6 +2,7 @@ export module cairn.build_plan;
 import <span>;
 import <string>;
 import <vector>;
+import <queue>;
 
 export template<typename Action>
 class BuildPlan {

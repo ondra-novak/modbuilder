@@ -85,6 +85,9 @@ public:
 
 
     virtual SourceStatus source_status(ModuleType , const std::filesystem::path &file, std::filesystem::file_time_type tm) const override;
+
+    virtual std::string preproc_for_test(const std::filesystem::path &file) const override;
+
 protected:
     Config _config;
     std::filesystem::path _module_cache;

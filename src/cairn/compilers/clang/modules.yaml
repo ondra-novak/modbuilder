@@ -1,0 +1,3 @@
+files:
+  - compiler_clang.cpp
+  - factory.cpp

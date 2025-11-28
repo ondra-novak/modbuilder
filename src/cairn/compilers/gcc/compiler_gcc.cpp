@@ -12,7 +12,9 @@ import cairn.source_scanner;
 import cairn.source_def;
 import cairn.origin_env;
 import cairn.module_type;
-import cairn.utils.env ;
+import cairn.utils.env;
+import cairn.preprocess;
+import cairn.gnu_compiler_setup;
 
 import <filesystem>;
 import <iostream>;
@@ -46,8 +48,6 @@ public:
     virtual SourceScanner::Info scan(const OriginEnv &env, const std::filesystem::path &file) const override;
 
 
-    std::pair<std::string,std::string> preprocess(const OriginEnv &env, const std::filesystem::path &file) const;
-
     CompilerGcc(Config config);
 
     virtual bool initialize_build_system(BuildSystemConfig ) override {return false;}
@@ -78,13 +78,15 @@ public:
         preproc_D, preproc_I, preproc_U, preproc_define_macro, preproc_undefine_macro, preproc_include_directory
     });
 
+    virtual std::string preproc_for_test(const std::filesystem::path &file) const override;
+
 protected:
     Config _config;
     std::filesystem::path _module_cache;
     std::filesystem::path _object_cache;
     std::filesystem::path _module_mapper;
     Version _version;
-    mutable ThreadPool _helper;
+    StupidPreprocessor _preproc;
     
 
     static Version get_gcc_version(Config &cfg);
@@ -120,35 +122,12 @@ Version CompilerGcc::get_gcc_version(Config &cfg) {
 }
 
 
-static std::vector<std::filesystem::path> extract_include_path(std::string text, const std::filesystem::path working_dir) {    
-    std::vector<std::filesystem::path> res;
-
-    std::string ln;
-
-    std::istringstream strm(std::move(text));
-    bool record = false;
-    while (!!strm) {
-        std::getline(strm, ln);
-        std::string_view lnw(ln);
-        while (!lnw.empty() && isspace(lnw.front())) lnw = lnw.substr(1);
-        while (!lnw.empty() && isspace(lnw.back())) lnw = lnw.substr(0,lnw.size()-1);
-        if (record) {
-            if (lnw == "End of search list.") break;
-            res.emplace_back((working_dir/lnw).lexically_normal());
-        } else if (lnw == "#include <...> search starts here:") {
-            record = true;
-        }
-    }
-    return res;
-}
-
-
-
 SourceScanner::Info CompilerGcc::scan(const OriginEnv &env, const std::filesystem::path &file) const
 {
-    auto pp = preprocess(env, file);
-    auto nfo = SourceScanner::scan_string(pp.first);
-    auto paths =  extract_include_path(pp.second, env.working_dir);
+    auto args = prepare_args(env,_config,'-');
+    auto preproc = _preproc;
+    auto nfo =  SourceScanner::scan_string(run_preprocess(preproc, args, env.working_dir, file));
+    auto paths =  preproc.get_include_paths();
     for (auto &s: nfo.required) {
         if (s.type == ModuleType::system_header) {
             for (const auto &x: paths) {
@@ -167,52 +146,6 @@ SourceScanner::Info CompilerGcc::scan(const OriginEnv &env, const std::filesyste
 }
 
 
-std::pair<std::string,std::string> CompilerGcc::preprocess(const OriginEnv &env,const std::filesystem::path &file) const {
-
-    auto args = prepare_args(env,_config,'-');
-
-    args.erase(std::remove_if(args.begin(), args.end(), [&,skip = false](const ArgumentString &s) mutable {
-        if (skip) {
-            skip = false;
-            return false;
-        }
-        auto f1 = std::find(all_preproc.begin(), all_preproc.end(), s);
-        if (f1 != all_preproc.end()) {
-            skip = true;
-            return false;
-        }
-        auto f2 = std::find_if(all_preproc.begin(), all_preproc.end(), [&](const ArgumentStringView &w) {
-            return s.starts_with(w);
-        });
-        return (f2 == all_preproc.end());
-    }), args.end());
-    append_arguments(args, {"-xc++", "-v", "-E", "{}"}, {path_arg(file)});
-
-
-    Process p = Process::spawn(_config.program_path, env.working_dir, args, Process::output|Process::error);
-
-    std::atomic<bool> done(false);
-    std::string err;
-    _helper.push([&]() noexcept {
-        try {
-            err = std::string ((std::istreambuf_iterator<char>(*p.stderr_stream)),
-                            std::istreambuf_iterator<char>());            
-        } catch (...) { }
-        done = true;
-        done.notify_all();
-
-    });
-
-    std::string out((std::istreambuf_iterator<char>(*p.stdout_stream)),
-                     std::istreambuf_iterator<char>());
-
-    done.wait(false);
-    if (p.waitpid_status()) {
-        std::cerr << err << std::endl;
-        dump_failed_cmdline(_config, env.working_dir, args);
-    }
-    return {std::move(out),std::move(err)};
-}
 
 CompilerGcc::CompilerGcc(Config config):_config(std::move(config)) {
 
@@ -231,7 +164,6 @@ CompilerGcc::CompilerGcc(Config config):_config(std::move(config)) {
     if (_version < Version("14.0")) {
         throw std::runtime_error("GCC: version 14.0 or higher is required. Found: " + _version.to_string());
     }
-    _helper.start(1);
     
 }
 

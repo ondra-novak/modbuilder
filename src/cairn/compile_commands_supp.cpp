@@ -16,6 +16,7 @@ import <unordered_map>;
 import <vector>;
 import <variant>;
 import <optional>;
+import <exception>;
 
 
 void CompileCommandsTable::load(std::filesystem::path p)

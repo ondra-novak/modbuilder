@@ -26,6 +26,7 @@ export struct AppSettings {
     std::vector<CompileTarget> targets = {};
     std::filesystem::path scan_file = {};
     std::filesystem::path generate_makefile = {};
+    std::filesystem::path preproc_file = {};
     unsigned int threads = 1;
     Mode mode = compile_and_link;
     bool show_help = false;
