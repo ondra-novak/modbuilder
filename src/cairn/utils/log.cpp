@@ -15,7 +15,7 @@ static void pre_format_default(Log::Level lev, Log::Buffer &buff) {
     }
 }
 
-static void publisher_default(Log::Level lev, const Log::Buffer &buff){
+static void publisher_default(Log::Level , const Log::Buffer &buff){
     std::lock_guard _(logmx);
     std::cerr << std::string_view(buff.begin(), buff.end()) << std::endl;
 }

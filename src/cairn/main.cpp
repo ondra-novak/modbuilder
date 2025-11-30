@@ -216,11 +216,12 @@ static void generate_makefile(const BuildPlan<ModuleDatabase::CompileAction> &pl
     mk << "\n";
     mk << "\n";
     idx = 0;
-    ArgumentString srchpath = path_arg((cur_dir/".").lexically_normal());
-    auto remove_abs_path = [&](ArgumentString arg) {
+    auto fakefile_path = cur_dir/"~";
+    ArgumentString srchpath = path_arg(cur_dir);
+    auto remove_abs_path = [&](ArgumentString arg, ArgumentString replace) {
         auto np = arg.find(srchpath);
         while (np != arg.npos) {
-            arg = arg.substr(0,np) + arg.substr(np+srchpath.size());
+            arg = arg.substr(0,np) + replace + arg.substr(np+srchpath.size());
             np = arg.find(srchpath);
         }
         return arg;
@@ -235,8 +236,10 @@ static void generate_makefile(const BuildPlan<ModuleDatabase::CompileAction> &pl
         mk << "| workdir \n";
         for (auto &[k,v]: cctmp._table) {
             
-            ArgumentString arg = remove_abs_path(v.command);
-            mk << "\t";
+            auto relpath = std::filesystem::relative(v.directory/"~", cur_dir).parent_path();
+            auto relpath_back = std::filesystem::relative(cur_dir/"~", v.directory).parent_path();
+            ArgumentString arg = remove_abs_path(v.command, path_arg(relpath_back));
+            mk << "\tcd " << relpath << "; ";
             to_utf8(arg.begin(), arg.end(), std::ostreambuf_iterator<char>(mk));
             mk << "\n";
             workdirs.insert(v.output.parent_path());
@@ -246,7 +249,7 @@ static void generate_makefile(const BuildPlan<ModuleDatabase::CompileAction> &pl
     }
     mk << "\nworkdir:\n";
     for (auto &w: workdirs) {
-        auto p = remove_abs_path(path_arg(w));
+        auto p = remove_abs_path(path_arg(w),string_arg("."));
         mk << "\tmkdir -p ";
         to_utf8(p.begin(), p.end(), std::ostreambuf_iterator<char>(mk));
         mk << "\n";

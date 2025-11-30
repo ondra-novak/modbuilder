@@ -92,7 +92,7 @@ export inline std::string run_preprocess(StupidPreprocessor &preproc,
         } else if (itm == preproc_I || itm == preproc_include_directory){
             a = 1;
             continue;
-        } else if (itm == preproc_U || itm == preproc_define_macro) {
+        } else if (itm == preproc_U || itm == preproc_undefine_macro) {
             a = 2;
             continue;
         } else if (itm.substr(0, preproc_D.length()) == preproc_D) {

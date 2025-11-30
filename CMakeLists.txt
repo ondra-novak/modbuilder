@@ -28,17 +28,17 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 
 if(MSVC)
-    add_compile_options(/W4 /D_CRT_SECURE_NO_WARNINGS /DNOMINMAX /EHsc)
+    set(COMPILE_FLAGS /W4 /D_CRT_SECURE_NO_WARNINGS /DNOMINMAX /EHsc /std:c++20)
 else()
-    add_compile_options(-Wall -Wextra -Wpedantic)
+    set(COMPILE_FLAGS -Wall -Wextra -Wpedantic -std=c++20)
 endif()
 
 include_directories(BEFORE src/json/src)
 
 add_custom_target(cairn ALL
     COMMAND /home/ondra/vscode/modbuilder/build/bin/cairn 
-        -j16 -b${CMAKE_BINARY_DIR}
+        -j0 -b${CMAKE_BINARY_DIR}
         -c${CMAKE_BINARY_DIR}/compile_commands.json 
         build/cairn=src/cairn/main.cpp 
-        ${CMAKE_CXX_COMPILER} -std=c++${CMAKE_CXX_STANDARD} -O3 ${CMAKE_CXX_FLAGS}
+        ${CMAKE_CXX_COMPILER} ${COMPILE_FLAGS}
     WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR})
