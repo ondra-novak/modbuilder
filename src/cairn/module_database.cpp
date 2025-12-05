@@ -196,11 +196,6 @@ void ModuleDatabase::check_for_recompile() {
     }
 }
 
-void ModuleDatabase:: recompile_all() {
-    for (const auto &[_,f]: _fileIndex) {
-        f->state.recompile = true;
-    }
-}
 
 ModuleDatabase::Unsatisfied ModuleDatabase::merge_references(Unsatisfied a1, Unsatisfied a2) {    
     Unsatisfied out;
@@ -491,7 +486,7 @@ BuildPlan<ModuleDatabase::CompileAction> ModuleDatabase::create_build_plan(
                 if (generates_object(ss->type)) {
                     lnk.first.push_back(ss);
                     //test for need recompile, if need, create targets
-                    if (ss->state.recompile || ss->object_path.empty() || !std::filesystem::exists(ss->object_path)) {
+                    if (recompile || ss->state.recompile || ss->object_path.empty() || !std::filesystem::exists(ss->object_path)) {
                         auto ref = plan.create_target({*this, compiler, getenv(ss), ss},ncompiled(ss));
                         target_ids.emplace(ss, ref);
                         //add to process this target
@@ -505,20 +500,6 @@ BuildPlan<ModuleDatabase::CompileAction> ModuleDatabase::create_build_plan(
             for (const PSource &ss: tmp) {
                 auto iter = target_ids.find(ss);
                 if (iter != target_ids.end()) plan.add_dependency(ref, iter->second);
-            }
-        }
-    }
-
-    ///when flag recompile - recompile everything marked as recompile
-    if (recompile) {
-        for (const auto &[_,f]: _fileIndex) {
-            if (f->state.recompile) {
-                auto iter = target_ids.find(f);
-                if (iter == target_ids.end())  {
-                    auto t = plan.create_target({*this, compiler, getenv(f), f},ncompiled(f))    ;
-                    target_ids.emplace(f, t);
-                    to_process.push(f);
-                }            
             }
         }
     }
@@ -542,7 +523,7 @@ BuildPlan<ModuleDatabase::CompileAction> ModuleDatabase::create_build_plan(
                 if (iter == target_ids.end()) {
                     //test whether this is bmi
                     //and file marked as recompile or has empty bmi path or the file doesn't exists
-                    if (generates_bmi(s->type) && (s->state.recompile 
+                    if (generates_bmi(s->type) && (recompile || s->state.recompile 
                             || s->bmi_path.empty() 
                             || !std::filesystem::exists(s->bmi_path))) {
                         //create target
@@ -583,9 +564,12 @@ bool ModuleDatabase::CompileAction::operator()() const noexcept
             const PSource &f = std::get<PSource>(step);
             AbstractCompiler::CompileResult result;
             int res = compiler.compile(env, {f->type, f->name, f->source_file}, get_references(f), result);
-            f->bmi_path = result.interface;
-            f->object_path = result.object;
-            db.set_dirty();
+            if (res == 0) {
+                f->bmi_path = result.interface;
+                f->object_path = result.object;
+                f->state.recompile = false;
+                db.set_dirty();
+            }
             return res == 0;
         } else {
             const LinkStep  &lnk = std::get<LinkStep>(step);
@@ -683,6 +667,7 @@ bool ModuleDatabase::check_database_version(const std::filesystem::path &compile
 void ModuleDatabase::import_database(std::istream &s) {
     clear();
     deserialize_from_stream(s, *this);
+    _modified = false;
 }
 
 void ModuleDatabase::update_compile_commands(CompileCommandsTable &cc, AbstractCompiler &compiler) {
@@ -701,3 +686,4 @@ void ModuleDatabase::update_compile_commands(CompileCommandsTable &cc, AbstractC
             modules);            
     }
 }
+

@@ -28,7 +28,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 
 if(MSVC)
-    set(COMPILE_FLAGS /W4 /D_CRT_SECURE_NO_WARNINGS /DNOMINMAX /EHsc /std:c++20)
+    set(COMPILE_FLAGS /W4 /EHsc /std:c++20)
 else()
     set(COMPILE_FLAGS -Wall -Wextra -Wpedantic -std=c++20)
 endif()
@@ -41,9 +41,9 @@ separate_arguments(FLAGS_MINSIZEREL NATIVE_COMMAND ${CMAKE_CXX_FLAGS_MINSIZEREL}
 
 add_custom_target(cairn ALL
     COMMAND ${CMAKE_CURRENT_LIST_DIR}/.install/cairn 
-        -j0 -b${CMAKE_BINARY_DIR}
+        -j0 -d -b${CMAKE_BINARY_DIR}
         -c${CMAKE_BINARY_DIR}/compile_commands.json 
         build/cairn=src/cairn/main.cpp 
-        ${CMAKE_CXX_COMPILER} ${COMPILE_FLAGS} ${FLAGS_RELEASE}
+        ${CMAKE_CXX_COMPILER} ${COMPILE_FLAGS} /Od /Zi /DEBUG
     WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR}
     COMMAND_EXPAND_LISTS   )

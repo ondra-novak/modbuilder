@@ -51,7 +51,7 @@ public:
 
     struct State {
         bool recompile = false;         ///<this file needs to be recompiled
-        bool rescan = false;            ///<this file must be rescaned
+        bool rescan = false;            ///<this file must be rescaned        )
     };
 
 
@@ -72,7 +72,7 @@ public:
             arch(
                 me.source_file,me.type,me.name,
                 me.origin,me.references,me.exported,
-                me.object_path,me.bmi_path
+                me.object_path,me.bmi_path, me.state.recompile
             );
         }
     };
@@ -179,7 +179,8 @@ public:
 
     void check_for_modifications(AbstractCompiler &compiler);
     void check_for_recompile();
-    void recompile_all();
+
+    
 
     bool check_database_version(const std::filesystem::path &compiler, std::span<const ArgumentString> arguments);
 

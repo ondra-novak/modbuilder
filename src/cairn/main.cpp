@@ -95,7 +95,7 @@ void  load_database(ModuleDatabase &db, const std::filesystem::path &path) {
     std::ifstream f(path, std::ios::in|std::ios::binary);
     if (!!f) {
         try {
-            db.import_database(f);
+            db.import_database(f);            
         } catch (std::exception &e) {
             Log::warning("Database is corrupted. Rebuilding: {}", e.what());
             db.clear();
@@ -309,7 +309,7 @@ int tmain(int argc, ArgumentString::value_type *argv[]) {
         auto db_path = settings.working_directory_path/"modules.db";
 
         ModuleDatabase db;
-        if (!settings.drop_database) load_database(db, db_path);
+        if (!settings.drop_database) load_database(db, db_path);        
         if (!db.check_database_version(settings.compiler_path, settings.compiler_arguments)) {
             Log::verbose("Settings has been changed, rebuilding");
         }
@@ -330,9 +330,8 @@ int tmain(int argc, ArgumentString::value_type *argv[]) {
         }
 
         if (!settings.generate_makefile.empty()) {
-            db.recompile_all();
             auto mplan = db.create_build_plan(*compiler, *default_env, 
-                    targets, false,  !settings.lib_arguments.empty());
+                    targets, true,  !settings.lib_arguments.empty());
             compiler->dry_run(true);
             ThreadPool tp;
             tp.start(1);
@@ -341,16 +340,25 @@ int tmain(int argc, ArgumentString::value_type *argv[]) {
             return 0;
         }
 
+        std::vector<AbstractCompiler::ModuleMapping> module_map;
 
-        if (settings.recompile || settings.list) db.recompile_all();
+        if (settings.list) {
+            auto plan = db.create_build_plan(*compiler, *default_env, 
+                        targets, true,  !settings.lib_arguments.empty());
+            db.extract_module_mapping(plan, module_map);
+            list_modules(db,module_map);
+            return 0;
+
+        }
+
+
         else db.check_for_recompile();
 
         auto plan = db.create_build_plan(*compiler, *default_env, 
-                    targets, false,  !settings.lib_arguments.empty());
+                    targets, settings.recompile,  !settings.lib_arguments.empty());
 
     
                 
-        std::vector<AbstractCompiler::ModuleMapping> module_map;
         if (settings.list) {
             db.extract_module_mapping(plan, module_map);
             list_modules(db,module_map);
