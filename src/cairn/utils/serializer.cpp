@@ -80,7 +80,7 @@ public:
     } 
 
 protected:
-    Fn &&_fn;
+    Fn _fn;
     std::map<std::shared_ptr<const char>, int> shared_refs;
     int next_idx = 2;
 };
@@ -138,7 +138,7 @@ public:
 
 
 protected:
-    Fn &&_fn;
+    Fn _fn;
     std::map<int, std::shared_ptr<void> > _ptr_map;
 };
 
@@ -152,7 +152,7 @@ void serialize_to_stream(std::ostream &out, const T &what) {
     wr(what);
 }
 export template<typename T>
-void deserialize_from_stream(std::istream &in, T &what) {
+void deserialize_from_stream(std::istream &in, T &what) {    
     SerializerBinaryReader rd([&](void *data, std::size_t sz){
         in.read(reinterpret_cast<char *>(data), sz);
         if (!in || static_cast<std::size_t>(in.gcount()) != sz) return false;

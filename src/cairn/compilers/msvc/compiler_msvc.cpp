@@ -291,7 +291,8 @@ SourceScanner::Info CompilerMSVC::scan(const OriginEnv &env, const std::filesyst
     auto out = run_preproc(args, env.working_dir, file);
 
     auto info =  SourceScanner::scan_string(out);
-    for (auto &r: std::initializer_list<std::vector<SourceScanner::Reference> *>({&info.required, &info.exported})) {
+    std::array<std::vector<SourceScanner::Reference> *,2> to_process({&info.required, &info.exported});
+    for (auto &r: to_process) {
         for (auto &s: *r) {
             if (s.type == ModuleType::user_header) {
                 s.name = (env.working_dir/s.name).lexically_normal().string();
