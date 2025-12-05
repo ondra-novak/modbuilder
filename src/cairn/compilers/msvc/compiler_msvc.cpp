@@ -88,6 +88,7 @@ public:
     virtual std::string preproc_for_test(const std::filesystem::path &file) const override;
 
     virtual bool transitive_headers() const override {return true;}
+
 protected:
 
     Config _config;
@@ -201,7 +202,7 @@ CompilerMSVC::CompilerMSVC(Config config): _config(std::move(config)) {
         }
     }
 
-    if (Log::is_level_enabled(Log::Level::debug)) {
+/*    if (Log::is_level_enabled(Log::Level::debug)) {
         std::ofstream f(_config.working_directory/"env.txt", std::ios::out|std::ios::trunc);
         SystemEnvironment::Buffer b;
         auto iter = _env_cache.env.posix_format(b);
@@ -213,7 +214,7 @@ CompilerMSVC::CompilerMSVC(Config config): _config(std::move(config)) {
             ++iter;
         }
     }
-
+*/
     auto n = _config.program_path.filename().wstring();
     auto s = n.rfind(L'@');
     if (s != n.npos) {
@@ -745,3 +746,4 @@ std::string CompilerMSVC::run_preproc(std::span<const ArgumentString> args, std:
 std::string CompilerMSVC::preproc_for_test(const std::filesystem::path &file) const {
     return run_preproc(_config.compile_options, std::filesystem::current_path(), file);
 }
+
