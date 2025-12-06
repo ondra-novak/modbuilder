@@ -31,6 +31,7 @@ import <map>;
 import <algorithm>;
 import <iostream>;
 import <thread>;
+import <format>;
 
 
 static constexpr auto gcc_type_1 = ArgumentConstant("gcc");

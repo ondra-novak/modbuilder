@@ -40,11 +40,10 @@ export inline  std::vector<std::filesystem::path> extract_include_path(std::stri
 
 
 
-export inline StupidPreprocessor initialize_preprocesor_using_gnu_compiler(std::filesystem::path program_path, ThreadPool &tp) {
+export inline StupidPreprocessor initialize_preprocesor_using_gnu_compiler(std::filesystem::path program_path, std::vector<ArgumentString> args, ThreadPool &tp) {
 
-    std::vector<ArgumentString> args;
     auto curdir =std::filesystem::current_path();
-    append_arguments(args, {"-v","-E","-dM","-"},{});
+    append_arguments(args, {"-v","-E","-xc++","-dM","-"},{});
     Process p = Process::spawn(program_path, curdir, args, Process::input_output_error);
     p.stdin_stream.reset(); 
     p.child_stdin_buf.reset();  //close stream;

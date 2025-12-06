@@ -40,13 +40,13 @@ protected:
 
 export template<typename Prototype> class FunctionView;
 
-export template<typename R, typename ... Args>
+template<typename R, typename ... Args>
 class FunctionView<R(Args...)>: public FunctionViewImpl<false, R, Args...> {
 public:
     using FunctionViewImpl<false, R, Args...>::FunctionViewImpl;
 };
 
-export template<typename R, typename ... Args>
+template<typename R, typename ... Args>
 class FunctionView<R(Args...) noexcept>: public FunctionViewImpl<true, R, Args...> {
 public:
     using FunctionViewImpl<true, R, Args...>::FunctionViewImpl;

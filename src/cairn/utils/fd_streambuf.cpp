@@ -16,7 +16,6 @@ module;
 export module cairn.utils.fd_streambuf;
 import <streambuf>;
 import <vector>;
-import <streambuf>;
 
 
 // Jednoduchý, přenositelný streambuf pro file descriptor

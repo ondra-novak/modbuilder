@@ -1,7 +1,7 @@
 
 export module cairn.utils.log;
 
-export import <format>;
+import <format>;
 import <vector>;
 import <functional>;
 import <array>;

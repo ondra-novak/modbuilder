@@ -5,9 +5,10 @@ module;
 #include <windows.h>
 #include <ShlObj.h>
 #undef interface
+#pragma comment(lib, "Shell32.lib")
 #endif
 
-#pragma comment(lib, "Shell32.lib")
+
 
 module cairn.compiler.msvc;
 
@@ -30,9 +31,11 @@ import <fstream>;
 import <iostream>;
 import <string>;
 import <filesystem>;
+import <format>;
 import <numeric>;
 import <vector>;
 import <map>;
+import <span>;
 import <unordered_map>;
 
 class CompilerMSVC: public AbstractCompiler {

@@ -5,8 +5,7 @@ module;
 #include <fcntl.h>
 #include <sys/wait.h>
 #include <signal.h>
-
-extern char **environ;
+#include "env_extern.hpp"
 
 export module cairn.utils.process:posix;
 import cairn.utils.arguments;

@@ -26,6 +26,8 @@ import <stdexcept>;
 import <exception>;
 import <unordered_set>;
 import <atomic>;
+import <span>;
+import <format>;
 
 class CompilerGcc : public AbstractCompiler {
 public:
@@ -130,14 +132,17 @@ SourceScanner::Info CompilerGcc::scan(const OriginEnv &env, const std::filesyste
     auto paths =  preproc.get_include_paths();
     for (auto &s: nfo.required) {
         if (s.type == ModuleType::system_header) {
+            bool ok = false;
             for (const auto &x: paths) {
                 std::filesystem::path candidate = (x/s.name).lexically_normal();
                 std::error_code ec;
                 if (std::filesystem::is_regular_file(candidate, ec)) {
                     s.name = s.name + "@"+candidate.string();
+                    ok = true;
                     break;
                 }
             }
+            if (!ok) Log::error("Failed to resolve header <{}>", s.name);
         } else if (s.type == ModuleType::user_header) {
             s.name = s.name + "@" + (env.working_dir/s.name).lexically_normal().string();
         }
@@ -164,6 +169,11 @@ CompilerGcc::CompilerGcc(Config config):_config(std::move(config)) {
     if (_version < Version("14.0")) {
         throw std::runtime_error("GCC: version 14.0 or higher is required. Found: " + _version.to_string());
     }
+
+
+    ThreadPool tp;
+    tp.start(1);
+    _preproc = initialize_preprocesor_using_gnu_compiler(_config.program_path, _config.compile_options, tp);
     
 }
 

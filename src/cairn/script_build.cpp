@@ -7,6 +7,8 @@ import cairn.utils.utf8;
 
 import <fstream>;
 import <set>;
+import <map>;
+import <unordered_map>;
 import <filesystem>;
 import <string>;
 import <string_view>;

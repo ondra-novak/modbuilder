@@ -129,7 +129,7 @@ ModuleResolver::Result process_yaml(const std::filesystem::path &yaml_file) {
         if (!targets.is_null()) {
             if (!targets.is_mapping()) throw std::runtime_error("`targets` must be a key-value mapping");
             for (auto &[k, v]: targets.as_map()) {
-                result.targets.push_back({
+                result.targets.push_back(CompileTarget{
                     (base/u8_from_string(k.as_str())).lexically_normal(),
                     (base/u8_from_string(v.as_str())).lexically_normal()
                 });

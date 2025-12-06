@@ -28,6 +28,7 @@ import <array>;
 import <span>;
 import <optional>;
 import <unordered_map>;
+import <format>;
 
 class CompilerClang : public AbstractCompiler {
 public:
@@ -162,7 +163,7 @@ CompilerClang::CompilerClang(Config config) :_config((std::move(config))) {
 
     ThreadPool tp;
     tp.start(1);
-    _preproc = initialize_preprocesor_using_gnu_compiler(_config.program_path, tp);
+    _preproc = initialize_preprocesor_using_gnu_compiler(_config.program_path, _config.compile_options, tp);
 
 }
 
