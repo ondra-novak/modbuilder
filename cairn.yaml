@@ -1,4 +1,4 @@
 targets:
-  build/bin/cairn: src/cairn/main.cpp
+  build/cairn: src/cairn/main.cpp
 prefixes:
   cairn: src/cairn

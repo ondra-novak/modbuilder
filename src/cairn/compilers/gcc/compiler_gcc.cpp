@@ -55,9 +55,9 @@ public:
     virtual bool commit_build_system() override {return false;}
 
 
-    virtual void update_compile_commands(CompileCommandsTable &cc,  const OriginEnv &env, 
-                const SourceDef &src, std::span<const SourceDef> modules) const  override;
-    virtual void update_link_command(CompileCommandsTable &cc,  
+    virtual void generate_compile_commands(CompileCommandCB cc,  const OriginEnv &env, 
+                const SourceDef &src, std::span<const SourceDef> modules) const override;
+    virtual void generate_link_command(CompileCommandCB cc,  
                 std::span<const std::filesystem::path> objects, const std::filesystem::path &output) const override;
 
 
@@ -325,13 +325,14 @@ std::unique_ptr<AbstractCompiler> create_compiler_gcc(AbstractCompiler::Config c
 }
 
 
-void CompilerGcc::update_compile_commands(CompileCommandsTable &cc,  const OriginEnv &env, 
+void CompilerGcc::generate_compile_commands(CompileCommandCB cc,  const OriginEnv &env, 
                 const SourceDef &src, std::span<const SourceDef> modules) const  {
 
     CompileResult res;
     auto args = build_arguments( env, src, modules, res);    
     auto out = res.interface.empty()?std::move(res.object):std::move(res.interface);
-    cc.update(cc.record(env.working_dir, src.path, _config.program_path, std::move(args), std::move(out)));
+//    cc.update(cc.record(env.working_dir, src.path, _config.program_path, std::move(args), std::move(out)));
+    cc(env.working_dir, src.path, out, _config.program_path, std::move(args));
 }
 
 AbstractCompiler::SourceStatus CompilerGcc::source_status(ModuleType t,
@@ -345,12 +346,12 @@ AbstractCompiler::SourceStatus CompilerGcc::source_status(ModuleType t,
     }
 }
 
-void CompilerGcc::update_link_command(CompileCommandsTable &cc,  
+void CompilerGcc::generate_link_command(CompileCommandCB cb,  
         std::span<const std::filesystem::path> objects, const std::filesystem::path &output) const {
         std::vector<ArgumentString> args = _config.link_options;
         for (const auto &x: objects) args.push_back(path_arg(x));
         append_arguments(args, {"-o","{}"}, {path_arg(output)});
-        cc.update(cc.record(_config.working_directory, {}, _config.program_path, std::move(args), output));
+        cb(_config.working_directory,{},output,_config.program_path, std::move(args));
     }
 
 std::string CompilerGcc::preproc_for_test(const std::filesystem::path &file) const {

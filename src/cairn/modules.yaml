@@ -17,6 +17,7 @@ files
   - preprocess.cpp
   - preprocess.ifc.cpp
   - gnu_compiler_setup.cpp
+  - script_build.cpp
 prefixes:
   cairn.utils: utils
   cairn.compiler: compilers

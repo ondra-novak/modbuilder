@@ -10,13 +10,16 @@ import <set>;
 import <filesystem>;
 import <string>;
 import <string_view>;
+import <span>;
 
+/*
 static void output_cmd_line(const std::filesystem::path &base_dir,
                             const std::filesystem::path &workdir,
                             const std::span<const ArgumentString> &arguments) {
     
 }
 
+*/
 
 static ArgumentString splice_string(ArgumentStringView src_text, ArgumentStringView remove_seq, ArgumentStringView add_seq) {
     auto n = src_text.find(remove_seq);    
@@ -30,6 +33,62 @@ static ArgumentString splice_string(ArgumentStringView src_text, ArgumentStringV
     }    
     return out;
 }
+
+constexpr auto special_bash =  ArgumentConstant( " \t\n\"'\\$*?[]{}()<>;&|!");
+
+
+struct escape_arg_bash {
+    ArgumentString s;
+    escape_arg_bash(ArgumentString s):s(std::move(s)) {}
+
+    constexpr static bool needs_shell_quoting(ArgumentStringView s) {
+        return s.find_first_of(special_bash) != s.npos;
+    }
+
+    template<typename IO>
+    friend IO &operator << (IO &out, const escape_arg_bash &me) {
+        bool q = needs_shell_quoting(me.s);        
+        if (q) out << '\'';
+        to_utf8(me.s.begin(), me.s.end(), std::ostreambuf_iterator<char>(out));
+        if (q) out << '\'';
+        return out;
+    }
+};
+
+struct escape_arg_bat {
+    ArgumentString s;
+    escape_arg_bat(ArgumentString s):s(std::move(s)) {}
+    
+    static std::string escapeForBatArg(std::string s) {
+    std::string out;
+    for (char c : s) {
+        switch (c) {
+            case '^': out += "^^"; break;
+            case '&': out += "^&"; break;
+            case '|': out += "^|"; break;
+            case '<': out += "^<"; break;
+            case '>': out += "^>"; break;
+            case '(': out += "^("; break;
+            case ')': out += "^)"; break;
+            case '%': out += "%%"; break;  // pozor při delayed expansion
+            case '"': out += "\\\""; break;  // escapování uvnitř uvozovek
+            default: out += c;
+        }
+    }
+    if (out.find_first_of(" \"") == out.npos) return out;
+    return "\"" + out + "\""; // celé uzavřít do uvozovek
+}
+
+    template<typename IO>
+    friend IO &operator << (IO &out, const escape_arg_bat &me) {
+        std::string buff;
+        to_utf8(me.s.begin(), me.s.end(), std::back_inserter(buff));
+        buff = escapeForBatArg(buff);
+        out << buff;
+        return out;
+    }
+};
+
 
 export void generate_makefile(const BuildPlan<ModuleDatabase::CompileAction> &plan,            
             std::filesystem::path output            
@@ -59,73 +118,103 @@ export void generate_makefile(const BuildPlan<ModuleDatabase::CompileAction> &pl
     mk << "\n";
     idx = 0;
     ArgumentString srchpath = path_arg(cur_dir);
+
+    if (plan.begin() != plan.end()) {
+        plan.begin()->action.generate_compile_commands([&](const std::filesystem::path &,
+                                          const std::filesystem::path &,
+                                          const std::filesystem::path &,
+                                          const std::filesystem::path &compiler,
+                                          std::vector<ArgumentString> &&) {
+            mk << "CXX ?= " << compiler.filename().string() << "\n\n";
+        });
+        
+
+    }
+
     for (const auto &p:plan) {
-        CompileCommandsTable cctmp;
-        p.action.add_to_cctable(cctmp);
         mk << "t_" << idx << ":";
         for (auto &d: p.dependencies) {
             mk << " t_" << d;
         }
         mk << "| workdir \n";
-        for (auto &[k,v]: cctmp._table) {
-            
-            auto relpath = std::filesystem::relative(v.directory/"~", cur_dir).parent_path();
-            auto relpath_back = std::filesystem::relative(cur_dir/"~", v.directory).parent_path();
-            ArgumentString arg = splice_string(v.command, srchpath, path_arg(relpath_back)); 
-            mk << "\tcd " << relpath << "; ";
-            to_utf8(arg.begin(), arg.end(), std::ostreambuf_iterator<char>(mk));
+
+        p.action.generate_compile_commands([&](const std::filesystem::path &directory,
+                                          const std::filesystem::path &,
+                                          const std::filesystem::path &output,
+                                          const std::filesystem::path &,
+                                          std::vector<ArgumentString> &&arguments) {
+            auto relpath = path_arg(std::filesystem::relative(directory/"~", cur_dir).parent_path());
+            auto relpath_back = path_arg(std::filesystem::relative(cur_dir/"~", directory).parent_path());
+            mk << "\tcd " << escape_arg_bash(relpath) << "; ${CXX} ";
+            for (auto &a: arguments) mk << " " <<  escape_arg_bash(splice_string(a, srchpath, relpath_back));
             mk << "\n";
-            workdirs.insert(v.output.parent_path());
-        }
+            workdirs.insert(output.parent_path());
+        });
         ++idx;
         mk << "\n";
     }
     mk << "\nworkdir:\n";
     for (auto &w: workdirs) {
         auto p = splice_string(path_arg(w),srchpath, string_arg("."));
-        mk << "\tmkdir -p ";
-        to_utf8(p.begin(), p.end(), std::ostreambuf_iterator<char>(mk));
-        mk << "\n";
+        mk << "\tmkdir -p " << escape_arg_bash(p) << "\n";
     }
 }
 
 export void generate_batch(const BuildPlan<ModuleDatabase::CompileAction> &plan,            
                         std::filesystem::path output) {
     
+    std::ofstream out(output, std::ios::trunc|std::ios::out);
+    out << "@echo off\n";
+    if (plan.begin() != plan.end()) {
+        plan.begin()->action.generate_compile_commands([&](const std::filesystem::path &,
+                                          const std::filesystem::path &,
+                                          const std::filesystem::path &,
+                                          const std::filesystem::path &compiler,
+                                          std::vector<ArgumentString> &&) {
+            out << "SET CXX=" << escape_arg_bat(path_arg(compiler.filename())) << "\n"
+                  "IF NOT \"%1\" == \"\"  SET CXX=%1\n";
+            
+        });
+
+    }
+
+    out << "goto :init\n\n"
+           ":compile\n";
+
  
     auto cur_dir = output.parent_path();
     ArgumentString srchpath = path_arg(cur_dir);
-
-    std::vector<CompileCommandsTable::CCRecord> seq_plan;
     std::set<std::filesystem::path> workdirs;
+
+
+
     auto state = plan.initialize_state();
-    while (plan.prepare_actions(state, [&](auto , const ModuleDatabase::CompileAction &a) {
-        CompileCommandsTable cctmp;
-        a.add_to_cctable(cctmp);
-        for (auto &[k,v]: cctmp._table) {
-            seq_plan.push_back(v);
-            workdirs.insert(v.output.parent_path());
-        }
+    while (!plan.prepare_actions(state, [&](auto idx, const ModuleDatabase::CompileAction &a) {
+        a.generate_compile_commands([&](const std::filesystem::path &directory,
+                                          const std::filesystem::path &,
+                                          const std::filesystem::path &output,
+                                          const std::filesystem::path &,
+                                          std::vector<ArgumentString> &&arguments) {
+            auto relpath = path_arg(std::filesystem::relative(directory/"~", cur_dir).parent_path());
+            auto relpath_back = path_arg(std::filesystem::relative(cur_dir/"~", directory).parent_path());
+            out << "pushd " << escape_arg_bat(relpath) << "\n%CXX%";
+            for (auto &a: arguments) out << " " <<  escape_arg_bat(splice_string(a, srchpath, relpath_back));
+            out <<"\n"                                        
+                "popd\n";
+            workdirs.insert(output.parent_path());
+        });
+        plan.mark_done(state, idx);
         return true;
-    }));
-    
-    std::ofstream out(output, std::ios::trunc|std::ios::out);
-    if (!out) throw std::runtime_error("Can't open output file: " + output.string());
-    for (auto &d: workdirs) {
-        auto a = splice_string(path_arg(d), srchpath, string_arg("."));
-        out << "mkdir \"";
-        to_utf8(a.begin(), a.end(), std::ostreambuf_iterator<char>(out));
-        out << "\"\n";
+    }));   
+    out << "exit /b 0\n\n"
+           ":init\n";
+    for (auto &w: workdirs) {
+        auto p = splice_string(path_arg(w),srchpath, string_arg("."));
+        out << "md  " << escape_arg_bat(p) << "\n";
     }
-    for (auto &v: seq_plan) {
-        auto relpath = std::filesystem::relative(v.directory/"~", cur_dir).parent_path();
-        auto relpath_back = std::filesystem::relative(cur_dir/"~", v.directory).parent_path();
-        ArgumentString arg = splice_string(v.command, srchpath, path_arg(relpath_back)); 
-        out << "pushd \"" << relpath.u8string() << "\"\n";
-        to_utf8(arg.begin(), arg.end(), std::ostreambuf_iterator<char>(out));
-        out << "\n";
-        out << "popd\n";
-   }       
+
+    out << "goto :compile\n";
 
 
 }
+   

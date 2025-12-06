@@ -50,9 +50,9 @@ public:
         CompileResult &result) const override;
     virtual int link(std::span<const std::filesystem::path> objects, const std::filesystem::path &target) const override;
     virtual SourceScanner::Info scan(const OriginEnv &env, const std::filesystem::path &file) const override;
-    virtual void update_compile_commands(CompileCommandsTable &cc,  const OriginEnv &env, 
-                const SourceDef &src, std::span<const SourceDef> modules) const  override;
-    virtual void update_link_command(CompileCommandsTable &cc,  
+    virtual void generate_compile_commands(CompileCommandCB cc,  const OriginEnv &env, 
+                const SourceDef &src, std::span<const SourceDef> modules) const override;
+    virtual void generate_link_command(CompileCommandCB cc,  
                 std::span<const std::filesystem::path> objects, const std::filesystem::path &output) const override;
 
 
@@ -276,12 +276,12 @@ int CompilerMSVC::link(std::span<const std::filesystem::path> objects, const std
     }
     return r;
 }
-void CompilerMSVC::update_link_command(CompileCommandsTable &cc,  
+void CompilerMSVC::generate_link_command(CompileCommandCB cb,  
         std::span<const std::filesystem::path> objects, const std::filesystem::path &output) const {
         std::vector<ArgumentString> args = _config.link_options;
         append_arguments(args, {"/nologo","/Fe{}"}, {path_arg(output)});
         for (const auto &x: objects) args.push_back(path_arg(x));
-        cc.update(cc.record(_config.working_directory, {}, _config.program_path, std::move(args), output));
+        cb(_config.working_directory, {},output, _config.program_path, std::move(args));
     }
 
 
@@ -302,13 +302,13 @@ SourceScanner::Info CompilerMSVC::scan(const OriginEnv &env, const std::filesyst
     return info;
 }
 
-void CompilerMSVC::update_compile_commands(CompileCommandsTable &cc,  const OriginEnv &env, 
+void CompilerMSVC::generate_compile_commands(CompileCommandCB cb,  const OriginEnv &env, 
                 const SourceDef &src, std::span<const SourceDef> modules) const  {
 
     CompileResult res;
     auto args = build_arguments( env, src, modules, res);    
     auto out = res.interface.empty()?std::move(res.object):std::move(res.interface);
-    cc.update(cc.record(env.working_dir, src.path, _config.program_path, std::move(args), std::move(out)));
+    cb(env.working_dir, src.path, out, _config.program_path, std::move(args));
 }
 
 

@@ -164,7 +164,7 @@ public:
 
         //compile action
         bool operator()() const noexcept;        
-        void add_to_cctable(CompileCommandsTable &cctable) const;
+        void generate_compile_commands(AbstractCompiler::CompileCommandCB cb) const;
         auto get_references(const PSource &f) const;
     };
 
@@ -185,8 +185,7 @@ public:
     bool check_database_version(const std::filesystem::path &compiler, std::span<const ArgumentString> arguments);
 
     void export_database(std::ostream &s) const;
-    void import_database(std::istream &s);
-    void update_compile_commands(CompileCommandsTable &cc, AbstractCompiler &compiler);
+    void import_database(std::istream &s);    
 
     template<typename Me, typename Arch>
     static void serialize(Me &me, Arch &arch) {

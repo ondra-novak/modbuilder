@@ -14,3 +14,4 @@ files:
   - serialization_rules.cpp
   - serializer.cpp
   - simple_json.cpp
+  - function_view.cpp

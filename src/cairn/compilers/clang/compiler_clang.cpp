@@ -60,8 +60,10 @@ public:
     }
 
 
-    virtual void update_compile_commands(CompileCommandsTable &cc,  const OriginEnv &env, 
-                const SourceDef &src, std::span<const SourceDef> modules) const  override;
+    virtual void generate_compile_commands(CompileCommandCB cc,  const OriginEnv &env, 
+                const SourceDef &src, std::span<const SourceDef> modules) const override;
+    virtual void generate_link_command(CompileCommandCB cc,  
+                std::span<const std::filesystem::path> objects, const std::filesystem::path &output) const override;
 
 
     virtual void initialize_module_map(std::span<const ModuleMapping> ) override {}
@@ -69,8 +71,6 @@ public:
 
     static constexpr auto stdcpp=ArgumentConstant("-std=c++");
 
-     virtual void update_link_command(CompileCommandsTable &cc,  
-                std::span<const std::filesystem::path> objects, const std::filesystem::path &output) const override; 
     //preprocessor options
     static constexpr auto preproc_D = ArgumentConstant("-D");
     static constexpr auto preproc_U = ArgumentConstant("-U");
@@ -314,17 +314,17 @@ int CompilerClang::compile(const OriginEnv &env,
     
 }
 
-void CompilerClang::update_compile_commands(CompileCommandsTable &cc,  const OriginEnv &env, 
+void CompilerClang::generate_compile_commands(CompileCommandCB cb,  const OriginEnv &env, 
                 const SourceDef &src, std::span<const SourceDef> modules) const  {
 
     CompileResult res;
     auto args = build_arguments(true, env, src, modules, res);
     if (!args.empty()) {
-        cc.update(cc.record(env.working_dir, src.path,_config.program_path, std::move(args), std::move(res.interface)));
+        cb(env.working_dir, src.path,res.interface, _config.program_path, std::move(args));
     } 
     args = build_arguments(false, env, src, modules, res);
     if (!args.empty()) {
-        cc.update(cc.record(env.working_dir, src.path, _config.program_path,std::move(args), std::move(res.object)));
+        cb(env.working_dir, src.path,res.object, _config.program_path,std::move(args));
     } 
 }
 
@@ -339,12 +339,12 @@ std::unique_ptr<AbstractCompiler> create_compiler_clang(AbstractCompiler::Config
     return std::make_unique<CompilerClang>(std::move(cfg));
 }
 
-void CompilerClang::update_link_command(CompileCommandsTable &cc,  
+void CompilerClang::generate_link_command(CompileCommandCB cb,  
         std::span<const std::filesystem::path> objects, const std::filesystem::path &output) const {
         std::vector<ArgumentString> args = _config.link_options;
         for (const auto &x: objects) args.push_back(path_arg(x));
         append_arguments(args, {"-o","{}"}, {path_arg(output)});
-        cc.update(cc.record(_config.working_directory, {}, _config.program_path, std::move(args), output));
+        cb(_config.working_directory, {},output, _config.program_path, std::move(args) );
     }
 
 

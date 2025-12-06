@@ -5,6 +5,7 @@ module;
 
 export module cairn.abstract_compiler;
 
+import cairn.utils.function_view;
 import cairn.module_type;
 import cairn.source_def;
 import cairn.utils.arguments;
@@ -24,6 +25,8 @@ import <span>;
 
 export class AbstractCompiler {
 public:
+
+
     
 
     struct CompileResult {
@@ -111,6 +114,11 @@ public:
      */
     virtual int link(std::span<const std::filesystem::path> objects, const std::filesystem::path &output) const = 0;
 
+    using CompileCommandCB = FunctionView<void(const std::filesystem::path &directory,
+                                          const std::filesystem::path &input,
+                                          const std::filesystem::path &output,
+                                          const std::filesystem::path &compiler,
+                                          std::vector<ArgumentString> &&argumens)>;
 
     ///Update compile commands table
     /**
@@ -119,9 +127,9 @@ public:
      * @param src source definition
      * @param modules list of required modules (refering BMI files)
      */
-    virtual void update_compile_commands(CompileCommandsTable &cc,  const OriginEnv &env, 
+    virtual void generate_compile_commands(CompileCommandCB cc,  const OriginEnv &env, 
                 const SourceDef &src, std::span<const SourceDef> modules) const = 0;
-    virtual void update_link_command(CompileCommandsTable &cc,  
+    virtual void generate_link_command(CompileCommandCB cc,  
                 std::span<const std::filesystem::path> objects, const std::filesystem::path &output) const = 0;
 
     ///Perform scan operation

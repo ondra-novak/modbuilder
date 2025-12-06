@@ -17,6 +17,7 @@ import cairn.compile_commands;
 import cairn.build_plan;
 import cairn.utils.utf8;
 import cairn.module_resolver;
+import cairn.script_build;
 import <vector>;
 import <exception>;
 import <filesystem>;
@@ -193,7 +194,7 @@ static void list_modules(const ModuleDatabase &db, const std::vector<AbstractCom
 
 
 }
-
+/*
 static void generate_makefile(const BuildPlan<ModuleDatabase::CompileAction> &plan,            
             std::filesystem::path output            
         ) {
@@ -260,7 +261,7 @@ static void generate_makefile(const BuildPlan<ModuleDatabase::CompileAction> &pl
         mk << "\n";
     }
 }
-
+*/
 
 
 int tmain(int argc, ArgumentString::value_type *argv[]) {
@@ -306,6 +307,7 @@ int tmain(int argc, ArgumentString::value_type *argv[]) {
             return run_just_scan(*compiler, settings.scan_file);            
         }
 
+        bool compile_lib = !settings.lib_arguments.empty();
         auto db_path = settings.working_directory_path/"modules.db";
 
         ModuleDatabase db;
@@ -329,14 +331,20 @@ int tmain(int argc, ArgumentString::value_type *argv[]) {
             db.add_file( ts.source, *compiler);
         }
 
-        if (!settings.generate_makefile.empty()) {
+        if (settings.script_type != AppSettings::none) {
             auto mplan = db.create_build_plan(*compiler, *default_env, 
-                    targets, true,  !settings.lib_arguments.empty());
+                    targets, true,  compile_lib);
             compiler->dry_run(true);
             ThreadPool tp;
             tp.start(1);
             Builder::build(tp, mplan, true);
-            generate_makefile(mplan, settings.generate_makefile);            
+            if (settings.script_type == AppSettings::makefile) {
+                generate_makefile(mplan, settings.script_name);            
+            } else if (settings.script_type == AppSettings::batch) {
+                generate_batch(mplan, settings.script_name);            
+            } else {
+                return 1;
+            }
             return 0;
         }
 
@@ -344,14 +352,12 @@ int tmain(int argc, ArgumentString::value_type *argv[]) {
 
         if (settings.list) {
             auto plan = db.create_build_plan(*compiler, *default_env, 
-                        targets, true,  !settings.lib_arguments.empty());
+                        targets, true,  compile_lib);
             db.extract_module_mapping(plan, module_map);
             list_modules(db,module_map);
             return 0;
 
         }
-
-
         else db.check_for_recompile();
 
         auto plan = db.create_build_plan(*compiler, *default_env, 
@@ -389,7 +395,15 @@ int tmain(int argc, ArgumentString::value_type *argv[]) {
             } catch (std::exception &e) {
                 Log::warning("Cannot load {}: {} - rebuilding", settings.compile_commands_json.string(), e.what());
             }
-            db.update_compile_commands(cctable, *compiler);
+            auto genplan = db.create_build_plan(*compiler, *default_env, targets, true,  compile_lib);
+            for (auto &p: genplan.get_plan()) p.action.generate_compile_commands(
+                    [&](const std::filesystem::path &directory,
+                        const std::filesystem::path &input,
+                        const std::filesystem::path &output,
+                        const std::filesystem::path &compiler,
+                        std::vector<ArgumentString> &&arguments){
+                            cctable.update(cctable.record(directory, input,compiler,std::move(arguments), output));
+                    });            
             cctable.save(settings.compile_commands_json);
         }
 

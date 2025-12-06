@@ -598,12 +598,12 @@ bool ModuleDatabase::CompileAction::operator()() const noexcept
 
 
 
-void ModuleDatabase::CompileAction::add_to_cctable(CompileCommandsTable &cctable) const
+void ModuleDatabase::CompileAction::generate_compile_commands(AbstractCompiler::CompileCommandCB cb) const
 {
     if (std::holds_alternative<PSource>(step)) {
         const PSource &f = std::get<PSource>(step);
         std::vector<ArgumentString> result;
-        compiler.update_compile_commands(cctable, env, {f->type, f->name, f->source_file}, get_references(f));
+        compiler.generate_compile_commands(cb, env, {f->type, f->name, f->source_file}, get_references(f));
     } else if (std::holds_alternative<LinkStep>(step)) {
         const LinkStep &lnk = std::get<LinkStep>(step);
         std::unordered_set<std::filesystem::path> objs;
@@ -612,7 +612,7 @@ void ModuleDatabase::CompileAction::add_to_cctable(CompileCommandsTable &cctable
             objs.insert(f->object_path);
         }
         auto objs_vec = std::vector(objs.begin(), objs.end());
-        compiler.update_link_command(cctable, objs_vec, lnk.second);
+        compiler.generate_link_command(cb, objs_vec, lnk.second);
     }
 }
 
@@ -670,20 +670,4 @@ void ModuleDatabase::import_database(std::istream &s) {
     _modified = false;
 }
 
-void ModuleDatabase::update_compile_commands(CompileCommandsTable &cc, AbstractCompiler &compiler) {
-    std::vector<SourceDef> modules;
-    for (const auto &[p,f]: _fileIndex) {
-        modules.clear();
-        collect_bmi_references(f, [&](auto beg, auto end){
-            for (auto &f: std::ranges::subrange(beg,end)) {
-                if (!f->bmi_path.empty()) { //can't handle this case, so skip it 
-                    modules.push_back({f->type, f->name, f->bmi_path});
-                }
-            }            
-        }, compiler.transitive_headers());
-        compiler.update_compile_commands(cc, *f->origin, 
-            {f->type, f->name, f->source_file},
-            modules);            
-    }
-}
 

@@ -41,9 +41,10 @@ separate_arguments(FLAGS_MINSIZEREL NATIVE_COMMAND ${CMAKE_CXX_FLAGS_MINSIZEREL}
 
 add_custom_target(cairn ALL
     COMMAND ${CMAKE_CURRENT_LIST_DIR}/.install/cairn 
-        -j0 -d -b${CMAKE_BINARY_DIR}
+        -j0 -B${CMAKE_BINARY_DIR}
         -c${CMAKE_BINARY_DIR}/compile_commands.json 
-        build/cairn=src/cairn/main.cpp 
-        ${CMAKE_CXX_COMPILER} ${COMPILE_FLAGS} /Od /Zi /DEBUG
+        -f cairn.yaml
+#        ${CMAKE_CXX_COMPILER} ${COMPILE_FLAGS} ${FLAGS_RELEASE}
+    ${CMAKE_CXX_COMPILER} ${COMPILE_FLAGS} /Od /Zi 
     WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR}
     COMMAND_EXPAND_LISTS   )

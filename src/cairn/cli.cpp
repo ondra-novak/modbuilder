@@ -12,7 +12,13 @@ export struct AppSettings {
     enum Mode {
         compile_and_link,
         compile_only,
-        link_only
+        link_only,
+    };
+
+    enum ScriptType : char{
+        none,
+        batch,
+        makefile
     };
 
     ArgumentString compiler_type = {};
@@ -25,7 +31,7 @@ export struct AppSettings {
     std::vector<ArgumentString> lib_arguments =  {};
     std::vector<CompileTarget> targets = {};
     std::filesystem::path scan_file = {};
-    std::filesystem::path generate_makefile = {};
+    std::filesystem::path script_name = {};
     std::filesystem::path preproc_file = {};
     unsigned int threads = 1;
     Mode mode = compile_and_link;
@@ -34,6 +40,7 @@ export struct AppSettings {
     bool keep_going = false;
     bool drop_database = false;
     bool list = false;
+    ScriptType script_type = none;    
 
 };
 
@@ -55,17 +62,28 @@ constexpr std::string_view appname("Cairn");
 constexpr std::string_view licence("Copyright (c) 2025 Ondrej Novak (https://github.com/ondra-novak)\n"
                                    "This software is released under the MIT License. https://opensource.org/licenses/MIT");
 
+constexpr std::string_view asciiart_logo(R"logo(
+     O  
+    ( )       Cairn
+   ()( )      C++20 module builder
+  (  )O()     
+   ( )()      
+  ()O(  )     
+ (  )(   )    
+(__)(__)(_)
+)logo");
+
 constexpr std::string_view helptext = R"help(Usage:
 
 cairn [...switches...] <output1=file1.cpp> [<output2=file2.cpp>... ] <compiler> [...compiler/linker..flags...]
 
 Switches
 ========
--jN       specify count of thread
+-jN       specify count of threads
 -p<type>  select compiler type: gcc|clang|msvc
 -c<path>  generate compile_commands.json (path=where)
 -f<file>  specify environment file (modules.yaml) for this build
--b<dir>   specify build directory
+-B<dir>   specify build directory
 -C        compile only (doesn't run linker)
 -L        link only (requires compiled files in build directory)
 -k        keep going
@@ -76,6 +94,8 @@ Switches
 -l --list don't compile, just output list of all referenced modules and headers
 -M<file>  don't compile, create makefile containing all build steps needs to 
           create targets (works well with clang++ v18+) 
+-S<file>  don't compile, create BAT script containing all build steps needs to 
+          create targets (works well with cl.exe) 
 
 outputN   specifies path/name of output executable
 fileN.cpp specifies path/name of main file for this executable
@@ -185,7 +205,7 @@ bool parse_cmdline(AppSettings &settings, CliReader<ArgumentString::value_type> 
             case 'p': settings.compiler_type = cli.text();break;
             case 'c': settings.compile_commands_json = (curdir/cli.text()).lexically_normal();break;
             case 'f': settings.env_file_json = (curdir/cli.text()).lexically_normal();break;
-            case 'b': settings.working_directory_path = (curdir/cli.text()).lexically_normal();break;
+            case 'B': settings.working_directory_path = (curdir/cli.text()).lexically_normal();break;
             case 'r': settings.recompile = true;break;
             case 'R': settings.drop_database = true;break;
             case 'C': settings.mode = AppSettings::compile_only;break;
@@ -195,7 +215,12 @@ bool parse_cmdline(AppSettings &settings, CliReader<ArgumentString::value_type> 
             case 'h': settings.show_help = true;break;
             case 'k': settings.keep_going = true;break;
             case 'l': settings.list = true;break;
-            case 'M': settings.generate_makefile = (curdir/cli.text()).lexically_normal();break;
+            case 'M': settings.script_name = (curdir/cli.text()).lexically_normal();
+                      settings.script_type = AppSettings::makefile;
+                      break;
+            case 'S': settings.script_name = (curdir/cli.text()).lexically_normal();
+                      settings.script_type = AppSettings::batch;
+                      break;
         }
     }
     {
@@ -247,7 +272,7 @@ protected:
 };
 
 constexpr auto help_text = ConstText([](char *s)->std::size_t{
-    std::size_t need_space = appname.size()+APP_VERSION.size()+licence.size()+helptext.size()+5;
+    std::size_t need_space = appname.size()+APP_VERSION.size()+licence.size()+asciiart_logo.size()+helptext.size()+5;
     if (s != nullptr) {
         s = std::copy(appname.begin(), appname.end(), s);
         *s++ = ' ';
@@ -255,6 +280,7 @@ constexpr auto help_text = ConstText([](char *s)->std::size_t{
         *s++ = ' ';
         s = std::copy(licence.begin(), licence.end(), s);
         *s++ = '\n';
+        s = std::copy(asciiart_logo.begin(), asciiart_logo.end(), s);
         *s++ = '\n';
         s = std::copy(helptext.begin(), helptext.end(), s);
         *s++ = '\n';
